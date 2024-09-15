@@ -1,0 +1,165 @@
+plugins {
+    id 'java-library'
+    id "com.github.hierynomus.license" version "0.16.1"
+    id "maven-publish"
+    id 'signing'
+}
+
+group = 'com.devives'
+archivesBaseName = "devive-commons-manager"
+version = '0.1.0'
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+compileJava.options.encoding = "UTF-8"
+compileJava.options.encoding = "UTF-8"
+compileTestJava.options.encoding = "UTF-8"
+
+javadoc.options.encoding = "UTF-8"
+javadoc.failOnError = false
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    if (project.hasProperty("com.devives.commons.project-group")) {
+        implementation(project(path: ':commons-lang'))
+    } else {
+        implementation("com.devives:devive-commons-lang:0.1.0")
+    }
+    testImplementation platform('org.junit:junit-bom:5.9.1')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
+    testImplementation 'org.junit.platform:junit-platform-suite'
+    testImplementation("org.jmock:jmock:2.6.0")
+    testImplementation("org.jmock:jmock-junit5:2.12.0")
+    testImplementation("org.mockito:mockito-core:3.7.7")
+    testImplementation("org.mockito:mockito-junit-jupiter:3.7.7")
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
+var manifest = manifest {
+    attributes = [
+            "Manifest-Version"      : "1.0",
+            "Name"                  : "com/devives/commons/manager",
+            "Specification-Title"   : "Object lifecycle and management",
+            "Specification-Version" : "$project.version",
+            "Specification-Vendor"  : "Vladimir Ivanov",
+            "Implementation-Title"  : "com.devives.commons.manager",
+            "Implementation-Version": "$project.version",
+            "Implementation-Vendor" : "Vladimir Ivanov",
+            "Build-Date"            : new Date().format("yyyy-MM-dd HH:mm:ss (Z)"),
+            "X-Compile-Source-JDK"  : "$sourceCompatibility",
+            "X-Compile-Target-JDK"  : "$targetCompatibility"
+    ]
+}
+
+jar {
+    setManifest(manifest)
+
+    into("META-INF/maven/$project.group/$archivesBaseName") {
+        from { generatePomFileForCommonsManagerPublication }
+        rename ".*", "pom.xml"
+    }
+
+    into("META-INF") {
+        from { "LICENSE" }
+        from { "NOTICE" }
+    }
+}
+
+sourcesJar {
+    setManifest(manifest)
+
+    into("META-INF/maven/$project.group/$project.name") {
+        from { generatePomFileForCommonsManagerPublication }
+        rename ".*", "pom.xml"
+    }
+
+    into("META-INF") {
+        from { "LICENSE" }
+        from { "NOTICE" }
+    }
+}
+
+license {
+    header project.file('codequality/HEADER')
+    strictCheck true
+}
+
+publishing {
+    publications {
+        CommonsManager(MavenPublication) {
+            artifactId = archivesBaseName
+
+            from components.java
+            pom {
+                packaging = "jar"
+                artifactId = archivesBaseName
+                url = "https://github.com/devives/commons-manager"
+                description = "Devive Commons Manager"
+
+                properties = [
+                        "project.build.sourceEncoding": "UTF-8"
+                ]
+
+                organization {
+                    name = "DEVIVES"
+                    url = "https://github.com/devives"
+                }
+
+                licenses {
+                    license {
+                        name = "The Apache Software License, Version 2.0"
+                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+
+                scm {
+                    connection = "scm:https://github.com/devives/commons-manager.git"
+                    developerConnection = "scm:git@github.com:devives/commons-manager.git"
+                    url = "https://github.com/devives/commons-manager"
+                }
+
+                developers {
+                    developer {
+                        id = "ivvlev"
+                        name = "Vladimir Ivanov"
+                        email = "ivvlev@devives.com"
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'buildRepo'
+            url = layout.buildDirectory.dir("repo")
+        }
+    }
+
+}
+
+signing {
+    sign publishing.publications.CommonsManager
+}
+
+tasks.register("zip-for-central-sonatype", Zip) {
+    group("publishing")
+    dependsOn("publish")
+    setArchiveFileName( "$archivesBaseName-$version"+".zip")
+    from(layout.buildDirectory.dir("repo")){
+        exclude("**/maven-metadata.xml*")
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
