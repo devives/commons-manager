@@ -1,0 +1,491 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.devives.commons.manager;
+
+import com.devives.commons.lang.exception.ExceptionUtils;
+import com.devives.commons.lifecycle.CloseableObjImpl;
+
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+public class ConcurrentManagerImpl<K, O> extends CloseableObjImpl implements Manager<K, O> {
+
+    private final Map<K, Entry<O>> entryMap_ = new ConcurrentHashMap<>();
+    private final LifeCycleController lifeCycleController_ = new LifeCycleController() {
+
+    };
+
+    @Override
+    public boolean containsKey(K key) {
+        return getIfPresent(key) != null;
+    }
+
+    @Override
+    public Set<K> keySet() {
+        return entryMap_.keySet();
+    }
+
+    public Collection<O> values() {
+        return entryMap_.values().stream().map(Entry::getObject).collect(Collectors.toList());
+    }
+
+    @Override
+    public Iterator<O> iterator() {
+        return entryMap_.values().stream().map(Entry::getObject).filter(Objects::nonNull).iterator();
+    }
+
+    @Override
+    public O get(K key) throws ManagerException {
+        try {
+            Objects.requireNonNull(key);
+            validateOpened();
+            return doGet(key);
+        } catch (Exception e) {
+            throw ExceptionUtils.asUnchecked(e);
+        }
+    }
+
+    @Override
+    public O getIfPresent(K key) {
+        Objects.requireNonNull(key);
+        validateOpened();
+        return doFind(key);
+    }
+
+    @Override
+    public O computeIfAbsent(K key, Supplier<ObjectFactory<O>> factorySupplier) {
+        try {
+            Objects.requireNonNull(key);
+            Objects.requireNonNull(factorySupplier);
+            validateOpened();
+            return doComputeIfAbsent(key, factorySupplier);
+        } catch (Exception e) {
+            throw ExceptionUtils.asUnchecked(e);
+        }
+    }
+
+    @Override
+    public O put(K key, ObjectFactory<O> factory) {
+        try {
+            Objects.requireNonNull(key);
+            Objects.requireNonNull(factory);
+            validateOpened();
+            return doReplace(key, factory);
+        } catch (Exception e) {
+            throw ExceptionUtils.asUnchecked(e);
+        }
+    }
+
+    @Override
+    public O remove(K key) {
+        try {
+            Objects.requireNonNull(key);
+            validateOpened();
+            return doRemove(key);
+        } catch (Exception e) {
+            throw ExceptionUtils.asUnchecked(e);
+        }
+    }
+
+    @Override
+    public List<O> removeAll() {
+        validateOpened();
+        return doRemoveAll();
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return entryMap_.isEmpty();
+    }
+
+    @Override
+    public long size() {
+        return entryMap_.size();
+    }
+
+    @Override
+    protected void onClose() throws Exception {
+        doRemoveAll();
+    }
+
+    protected final O doGet(K key) throws Exception {
+        final O object = doFind(key);
+        if (object == null) {
+            throw createManagerException(String.format("The manager does not contain an object with the key '%s'.", key), null);
+        }
+        return object;
+    }
+
+    protected final O doFind(K key) {
+        O result = null;
+        final Entry<O> entry = acquireEntryIfPresent(key);
+        if (entry != null) {
+            try {
+                Lock lock = entry.readLock();
+                lock.lock();
+                try {
+                    ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
+                    if (objectAndAdapter != null) {
+                        result = objectAndAdapter.object;
+                        onEntryGet(entry);
+                    }
+                } finally {
+                    lock.unlock();
+                }
+            } finally {
+                releaseEntry(key);
+            }
+        }
+        return result;
+    }
+
+    protected final O doComputeIfAbsent(K key, Supplier<ObjectFactory<O>> factorySupplier) throws Exception {
+        O result = null;
+        final Entry<O> entry = acquireEntry(key);
+        try {
+            Lock lock = entry.readLock();
+            lock.lock();
+            try {
+                ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
+                if (objectAndAdapter == null) {
+                    lock.unlock();
+                    lock = entry.writeLock();
+                    lock.lock();
+                    objectAndAdapter = entry.getObjectAndAdapter();
+                    if (objectAndAdapter == null) {
+                        final ObjectFactory<O> factory = factorySupplier.get();
+                        result = doObjectCreate(factory);
+                        try {
+                            objectAndAdapter = entry.initObjectAndAdapter(result, factory);
+                            try {
+                                doObjectStart(objectAndAdapter);
+                            } catch (Throwable e) {
+                                try {
+                                    doObjectFailure(objectAndAdapter, e);
+                                } finally {
+                                    entry.clearObjectAndAdapter();
+                                }
+                                throw e;
+                            }
+                        } catch (Throwable e) {
+                            factory.destroyObject(result);
+                            throw e;
+                        }
+                    }
+                }
+                result = objectAndAdapter.object;
+                onEntryGet(entry);
+            } finally {
+                lock.unlock();
+            }
+        } finally {
+            releaseEntry(key);
+        }
+        return result;
+    }
+
+    protected final O doReplace(K key, ObjectFactory<O> factory) throws Exception {
+        O result = null;
+        final Entry<O> entry = acquireEntry(key);
+        try {
+            Lock lock = entry.readLock();
+            lock.lock();
+            try {
+                ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
+                if (objectAndAdapter != null) {
+                    lock.unlock();
+                    lock = entry.writeLock();
+                    lock.lock();
+                    objectAndAdapter = entry.getObjectAndAdapter();
+                    if (objectAndAdapter != null) {
+                        try {
+                            try {
+                                doObjectStop(objectAndAdapter);
+                            } catch (Throwable th) {
+                                doObjectFailure(objectAndAdapter, th);
+                                throw th;
+                            } finally {
+                                doObjectDestroy(objectAndAdapter);
+                            }
+                        } finally {
+                            entry.clearObjectAndAdapter();
+                        }
+                        result = objectAndAdapter.object;
+                    }
+                }
+                final O newObject = doObjectCreate(factory);
+                try {
+                    objectAndAdapter = entry.initObjectAndAdapter(newObject, factory);
+                    try {
+                        doObjectStart(objectAndAdapter);
+                    } catch (Throwable e) {
+                        try {
+                            doObjectFailure(objectAndAdapter, e);
+                        } finally {
+                            entry.clearObjectAndAdapter();
+                        }
+                        throw e;
+                    }
+                } catch (Throwable e) {
+                    factory.destroyObject(result);
+                    throw e;
+                }
+                onEntryGet(entry);
+            } finally {
+                lock.unlock();
+            }
+        } finally {
+            releaseEntry(key);
+        }
+        return result;
+    }
+
+    protected <E extends Entry<O>> E newEntry(K key) {
+        return (E) new Entry<O>(key);
+    }
+
+    protected final O doRemove(K key) throws Exception {
+        O result = null;
+        final Entry<O> entry = acquireEntryIfPresent(key);
+        if (entry != null) {
+            result = doRemoveEntry(key, entry);
+        }
+        return result;
+    }
+
+    protected final O doRemoveEntry(K key, Entry<O> entry) throws Exception {
+        O result = null;
+        try {
+            Lock lock = entry.writeLock();
+            lock.lock();
+            try {
+                final ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
+                if (objectAndAdapter != null) {
+                    try {
+                        try {
+                            doObjectStop(objectAndAdapter);
+                        } catch (Throwable th) {
+                            doObjectFailure(objectAndAdapter, th);
+                            throw th;
+                        } finally {
+                            doObjectDestroy(objectAndAdapter);
+                        }
+                    } finally {
+                        entry.clearObjectAndAdapter();
+                    }
+                    result = objectAndAdapter.object;
+                }
+            } finally {
+                lock.unlock();
+            }
+        } finally {
+            releaseEntry(key);
+        }
+        return result;
+    }
+
+    protected final List<O> doRemoveAll() {
+        final List<Throwable> exceptionList = new ArrayList<>();
+        final List<O> list = new ArrayList<>();
+        entryMap_.keySet().forEach(key -> {
+            try {
+                O item = doRemove((K) key);
+                if (item != null) {
+                    list.add(item);
+                }
+            } catch (Throwable e) {
+                exceptionList.add(e);
+            }
+        });
+        ExceptionUtils.throwCollected(exceptionList);
+        return list;
+    }
+
+    protected final Entry<O> acquireEntryIfPresent(final K k) {
+        return entryMap_.computeIfPresent(k, (key, entry) -> {
+            entry.incInternalUsage();
+            return entry;
+        });
+    }
+
+    protected final Entry<O> acquireEntry(final K k) {
+        return entryMap_.compute(k, (key, entry) -> {
+            if (entry == null) {
+                entry = newEntry(k);
+            }
+            entry.incInternalUsage();
+            return entry;
+        });
+    }
+
+    protected final void releaseEntry(final K k) {
+        //final Ref<Entry<I>> removedEntryRef = new Ref<>();
+        entryMap_.computeIfPresent(k, (key, e) -> {
+            final long usages = e.decInternalUsage();
+            if (usages > 0) {
+                return e;
+            } else if (usages < 0) {
+                throw new RuntimeException("Counter below zero!");
+            } else if (e.getObject() == null) {
+                //removedEntryRef.set(e);
+                return null;
+            } else {
+                return e;
+            }
+        });
+    }
+
+    protected Exception createManagerException(String message, Throwable cause) {
+        return new ManagerException(message, cause);
+    }
+
+    protected void onEntryGet(Entry<O> entry) {
+
+    }
+
+    protected final O doObjectCreate(ObjectFactory<O> factory) throws Exception {
+        O object = factory.createObject();
+        onObjectCreated(object);
+        return object;
+    }
+
+    protected void onObjectCreated(O object) throws Exception {
+
+    }
+
+    protected final void doObjectStart(ObjectAndAdapter<O> objectAndAdapter) throws Exception {
+        onObjectStarting(objectAndAdapter.object);
+        objectAndAdapter.adapter.startObject(objectAndAdapter.object);
+        onObjectStarted(objectAndAdapter.object);
+    }
+
+    protected void onObjectStarting(O object) throws Exception {
+
+    }
+
+    protected void onObjectStarted(O object) throws Exception {
+
+    }
+
+    protected final void doObjectFailure(ObjectAndAdapter<O> objectAndAdapter, Throwable throwable) throws Exception {
+        onObjectFailure(objectAndAdapter.object, throwable);
+        objectAndAdapter.adapter.failureObject(objectAndAdapter.object, throwable);
+    }
+
+    protected void onObjectFailure(O object, Throwable throwable) throws Exception {
+
+    }
+
+    protected final void doObjectStop(ObjectAndAdapter<O> objectAndAdapter) throws Exception {
+        onObjectStopping(objectAndAdapter.object);
+        objectAndAdapter.adapter.stopObject(objectAndAdapter.object);
+        onObjectStopped(objectAndAdapter.object);
+    }
+
+    protected void onObjectStopping(O object) throws Exception {
+
+    }
+
+    protected void onObjectStopped(O object) throws Exception {
+
+    }
+
+    protected final void doObjectDestroy(ObjectAndAdapter<O> objectAndAdapter) throws Exception {
+        onObjectDestroying(objectAndAdapter.object);
+        objectAndAdapter.adapter.destroyObject(objectAndAdapter.object);
+        onObjectDestroyed(objectAndAdapter.object);
+    }
+
+    protected void onObjectDestroying(O object) throws Exception {
+
+    }
+
+    protected void onObjectDestroyed(O object) throws Exception {
+
+    }
+
+    protected final static class ObjectAndAdapter<I> {
+
+        public final I object;
+        public final LifeCycleAdapter<I> adapter;
+
+        public ObjectAndAdapter(I object, LifeCycleAdapter<I> adapter) {
+            this.object = Objects.requireNonNull(object);
+            this.adapter = Objects.requireNonNull(adapter);
+        }
+
+    }
+
+    protected static class Entry<I> extends ReentrantReadWriteLock {
+        private final static Object NOT_INITIALIZED = new Object();
+        /**
+         * Number of threads with registered interest in this key.
+         * register(K) increments this counter and deRegister(K) decrements it.
+         * Invariant: empty entry will not be dropped unless internalUsageCount is 0.
+         */
+        private final AtomicLong internalUsageCount_ = new AtomicLong();
+        private volatile ObjectAndAdapter<I> objectAndAdapter_ = null;
+        private final AtomicReference<Object> objectAndAdapterRef_ = new AtomicReference<>(NOT_INITIALIZED);
+        private final CompletableFuture<ObjectAndAdapter<I>> loaderFuture_ = new CompletableFuture<>();
+
+        protected Entry(Object key) {
+            super(true);
+        }
+
+        public I getObject() {
+            final ObjectAndAdapter<I> objectAndAdapter = objectAndAdapter_;
+            return objectAndAdapter != null ? objectAndAdapter.object : null;
+        }
+
+        public ObjectAndAdapter<I> getObjectAndAdapter() {
+            objectAndAdapterRef_.compareAndSet(NOT_INITIALIZED, new CompletableFuture<>());
+            return objectAndAdapter_;
+        }
+
+        public ObjectAndAdapter<I> initObjectAndAdapter(I object, LifeCycleAdapter<I> lifeCycleAdapter) {
+            final ObjectAndAdapter<I> objectAndAdapter = new ObjectAndAdapter<I>(object, lifeCycleAdapter);
+            objectAndAdapter_ = objectAndAdapter;
+            return objectAndAdapter;
+        }
+
+        public ObjectAndAdapter<I> clearObjectAndAdapter() {
+            final ObjectAndAdapter<I> objectAndAdapter = objectAndAdapter_;
+            objectAndAdapter_ = null;
+            return objectAndAdapter;
+        }
+
+        public long incInternalUsage() {
+            return internalUsageCount_.incrementAndGet();
+        }
+
+        public long decInternalUsage() {
+            return internalUsageCount_.decrementAndGet();
+        }
+
+    }
+
+    public static class LifeCycleController {
+
+    }
+}
