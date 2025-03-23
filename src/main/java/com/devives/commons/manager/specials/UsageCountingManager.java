@@ -14,11 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.specials;
 
 
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lifecycle.CloseableAbst;
+import com.devives.commons.manager.ConcurrentManagerImpl;
+import com.devives.commons.manager.ManagerException;
+import com.devives.commons.manager.ObjectFactory;
 
 import java.io.Serializable;
 import java.util.Objects;

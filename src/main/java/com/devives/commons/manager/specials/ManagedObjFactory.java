@@ -14,12 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.lifecycle;
+package com.devives.commons.manager.specials;
 
-/**
- *
- */
-public interface ManagedObj extends LifeCycle, Closeable {
+import com.devives.commons.manager.LifeCycleAdapter;
 
+public interface ManagedObjFactory<K, O extends ManagedObj, M> extends LifeCycleAdapter<O> {
+
+    K buildKey(long sequence);
+
+    O createObject(K key, M manager) throws Exception;
 
 }

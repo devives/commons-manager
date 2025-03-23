@@ -14,19 +14,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.specials;
 
-import com.devives.commons.lifecycle.ManagedObj;
 import com.devives.commons.lifecycle.SynchronizedCloseableAbst;
+import com.devives.commons.manager.*;
 
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class ConcurrentManagedObjManagerImpl<O extends ManagedObj> extends SynchronizedCloseableAbst implements ManagedObjManager<String, O>, Serializable {
+/**
+ * Manager of {@link ManagedObj} instances.
+ *
+ * Class is an example of {@link ConcurrentManagerImpl} usage in more complex scenarios.
+ *
+ * @param <O> type of managed object
+ */
+public class ConcurrentManagedObjManager<O extends ManagedObj> extends SynchronizedCloseableAbst implements Serializable {
 
     private static final long serialVersionUID = 4885566608544537251L;
     private final Map<IdentityWrapper<O>, String> object2keyMap_ = new ConcurrentHashMap<>();
@@ -47,13 +55,18 @@ public class ConcurrentManagedObjManagerImpl<O extends ManagedObj> extends Synch
         }
     }
 
-    @Override
-    public O create(ManagedObjFactory<String, O, ManagedObjManager<String, O>> factory) {
+    /**
+     * Creates a new instance of class <tt>&lt;O&gt;</tt>.
+     *
+     * @param factory factory of managed objects.
+     * @return new instance of managed object.
+     */
+    public O create(ManagedObjFactory<String, O, ConcurrentManagedObjManager<O>> factory) {
         final String key = factory.buildKey(sequence_.incrementAndGet());
         return manager_.computeIfAbsent(key, () -> new ObjectFactory<O>() {
             @Override
             public O createObject() throws Exception {
-                return factory.createObject(key, ConcurrentManagedObjManagerImpl.this);
+                return factory.createObject(key, ConcurrentManagedObjManager.this);
             }
 
             @Override
@@ -78,12 +91,22 @@ public class ConcurrentManagedObjManagerImpl<O extends ManagedObj> extends Synch
         });
     }
 
-    @Override
+    /**
+     * Return managed object by given key.
+     *
+     * @param key key of managed object
+     * @return exist instance of managed object.
+     * @throws ManagerException if no instance with {@code key} present in manager.
+     */
     public O get(String key) throws ManagerException {
         return manager_.get(key);
     }
 
-    @Override
+    /**
+     * Remove managed object from manager.
+     *
+     * @param object managed object.
+     */
     public void remove(O object) {
         final String key = object2keyMap_.remove(new IdentityWrapper<>(object));
         if (key != null) {
@@ -92,22 +115,41 @@ public class ConcurrentManagedObjManagerImpl<O extends ManagedObj> extends Synch
         }
     }
 
-    @Override
+    /**
+     * Returns a {@link Set} view of the keys contained in this manager.
+     *
+     * @return a set view of the keys contained in this manager.
+     * @see ConcurrentHashMap#keySet()
+     */
     public Set<String> keySet() {
         return manager_.keySet();
     }
 
-    @Override
+    /**
+     * Returns a {@link Collection} view of the values contained in this manager.
+     *
+     * @return a collection view of the values contained in this manager.
+     * @see ConcurrentHashMap#values()
+     */
     public List<O> values() {
         return manager_.values();
     }
 
-    @Override
+    /**
+     * Returns a value indicating the absence of objects.
+     *
+     * @return {@code true}, if managed is empty, else {@code false}.
+     */
+
     public boolean isEmpty() {
         return manager_.isEmpty();
     }
 
-    @Override
+    /**
+     * Return count of objects in manager.
+     *
+     * @return count.
+     */
     public long size() {
         return manager_.size();
     }

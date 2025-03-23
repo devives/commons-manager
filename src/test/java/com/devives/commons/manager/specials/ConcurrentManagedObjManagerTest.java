@@ -14,13 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.specials;
 
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.function.FailableConsumer;
 import com.devives.commons.lang.reflection.ProxyBuilder;
 import com.devives.commons.lifecycle.Closeable;
-import com.devives.commons.lifecycle.SynchronizedManagedObjAbst;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -48,7 +47,8 @@ public class ConcurrentManagedObjManagerTest {
         forTestManager(manager -> {
             AbstractSession session1 = manager.create(testSession1Factory);
             Assertions.assertTrue(session1 instanceof ActiveSession);
-            Assertions.assertEquals(session1, manager.get("A-1"));
+            Assertions.assertEquals("A-1", session1.getId());
+            Assertions.assertEquals(session1, manager.get(session1.getId()));
             Assertions.assertEquals(1, manager.size());
         });
     }
@@ -94,9 +94,10 @@ public class ConcurrentManagedObjManagerTest {
     @Test
     public void create_PassiveSession_NoExceptions() throws Exception {
         forTestManager(manager -> {
-            AbstractSession session1 = manager.create(testSession1Factory);
-            Assertions.assertTrue(session1 instanceof ActiveSession);
-            Assertions.assertEquals(session1, manager.get("A-1"));
+            AbstractSession session1 = manager.create(testSession2Factory);
+            Assertions.assertTrue(session1 instanceof PassiveSession);
+            Assertions.assertEquals("P-1", session1.getId());
+            Assertions.assertEquals(session1, manager.get(session1.getId()));
             Assertions.assertEquals(1, manager.size());
         });
     }
@@ -119,8 +120,8 @@ public class ConcurrentManagedObjManagerTest {
         });
     }
 
-    private static void forTestManager(FailableConsumer<ManagedObjManager<String, AbstractSession>, Exception> consumer) throws Exception {
-        ManagedObjManager<String, AbstractSession> manager = new ConcurrentManagedObjManagerImpl<>();
+    private static void forTestManager(FailableConsumer<ConcurrentManagedObjManager<AbstractSession>, Exception> consumer) throws Exception {
+        ConcurrentManagedObjManager<AbstractSession> manager = new ConcurrentManagedObjManager<>();
         try {
             consumer.accept(manager);
         } finally {
@@ -170,7 +171,7 @@ public class ConcurrentManagedObjManagerTest {
     /**
      *
      */
-    private static abstract class SessionFactoryAbst implements ManagedObjFactory<String, AbstractSession, ManagedObjManager<String, AbstractSession>> {
+    private static abstract class SessionFactoryAbst implements ManagedObjFactory<String, AbstractSession, ConcurrentManagedObjManager<AbstractSession>> {
 
         protected final String keyPrefix_;
         protected final ServerContext serverContext_;
@@ -206,7 +207,7 @@ public class ConcurrentManagedObjManagerTest {
         }
 
         @Override
-        public AbstractSession createObject(String key, ManagedObjManager<String, AbstractSession> manager) throws Exception {
+        public AbstractSession createObject(String key, ConcurrentManagedObjManager<AbstractSession> manager) throws Exception {
             acquireResources();
             executorService_ = Executors.newSingleThreadExecutor();
             return new ActiveSession(key, dataSource_, executorService_, manager::remove);
@@ -247,7 +248,7 @@ public class ConcurrentManagedObjManagerTest {
         }
 
         @Override
-        public AbstractSession createObject(String key, ManagedObjManager<String, AbstractSession> manager) throws Exception {
+        public AbstractSession createObject(String key, ConcurrentManagedObjManager<AbstractSession> manager) throws Exception {
             acquireResources();
             return new PassiveSession(key, dataSource_, manager::remove);
         }

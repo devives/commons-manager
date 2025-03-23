@@ -14,31 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.lifecycle;
+package com.devives.commons.manager.specials;
 
-import com.devives.commons.lang.function.FailableConsumer;
-
-import java.util.Objects;
+import com.devives.commons.lifecycle.Closeable;
+import com.devives.commons.lifecycle.LifeCycle;
 
 /**
- * Implementation of {@link ManagedObj}.
  *
- * @param <SELF> self type.
  */
-public abstract class ManagedObjAbst<SELF extends ManagedObj> extends LifeCycleAbst implements Closeable {
+public interface ManagedObj extends LifeCycle, Closeable {
 
-    private final FailableConsumer<SELF, Exception> removeCallback_;
 
-    public ManagedObjAbst(FailableConsumer<SELF, Exception> removeCallback) {
-        removeCallback_ = Objects.requireNonNull(removeCallback);
-    }
-
-    @Override
-    public final void close() throws Exception {
-        onClose();
-    }
-
-    protected void onClose() throws Exception {
-        removeCallback_.accept((SELF) this);
-    }
 }
