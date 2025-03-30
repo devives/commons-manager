@@ -464,6 +464,11 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
 
     }
 
+    /**
+     * Immutable class for storing of the pair of objects.
+     *
+     * @param <I> type of managed object
+     */
     protected final static class ObjectAndAdapter<I> {
 
         public final I object;
@@ -499,12 +504,15 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
 
     }
 
-    protected static class Entry<I> extends ReentrantReadWriteLock {
-        private static final long serialVersionUID = -5529739544330238632L;
+    protected static class Entry<I> implements Serializable {
+        private static final long serialVersionUID = -5529739784330238632L;
+        /**
+         * Volatile variable for the atomic non blocking read write operations.
+         */
         private volatile ObjectAndAdapter<I> objectAndAdapter_ = null;
 
         protected Entry(Object key) {
-            super(true);
+
         }
 
         public I getObject() {
