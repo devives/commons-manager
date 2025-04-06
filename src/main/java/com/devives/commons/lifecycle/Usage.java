@@ -16,7 +16,7 @@
  */
 package com.devives.commons.lifecycle;
 
-import com.devives.commons.lang.function.ExceptionProcedure;
+import com.devives.commons.lang.function.FailableProcedure;
 
 import java.util.Objects;
 
@@ -36,7 +36,7 @@ public final class Usage<T> implements AutoCloseable {
 
     private final T instance_;
     private final long count_;
-    private final ExceptionProcedure decrementer_;
+    private final FailableProcedure decrementer_;
 
     /**
      * The constructor.
@@ -45,7 +45,7 @@ public final class Usage<T> implements AutoCloseable {
      * @param count             the current count of uses.
      * @param decrementCallback the callback to decrease the use counter.
      */
-    public Usage(T instance, long count, ExceptionProcedure decrementCallback) {
+    public Usage(T instance, long count, FailableProcedure decrementCallback) {
         instance_ = Objects.requireNonNull(instance);
         count_ = count;
         decrementer_ = Objects.requireNonNull(decrementCallback);

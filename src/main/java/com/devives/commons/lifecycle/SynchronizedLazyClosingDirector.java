@@ -16,8 +16,7 @@
  */
 package com.devives.commons.lifecycle;
 
-
-import com.devives.commons.lang.function.ExceptionProcedure;
+import com.devives.commons.lang.function.FailableProcedure;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -39,7 +38,7 @@ public class SynchronizedLazyClosingDirector implements LazyCloseableAsync {
     /**
      * Этот метод будет вызван при выполнении условия: счётчик использований равен "0" и вызван метод {@link #closeAsync()}.
      */
-    private final ExceptionProcedure closeDelegate_;
+    private final FailableProcedure closeDelegate_;
     /**
      * Синхронизирует доступ к полям {@link #closeTimeStamp_} и {@link #usageCounter_}.
      */
@@ -57,7 +56,7 @@ public class SynchronizedLazyClosingDirector implements LazyCloseableAsync {
     /**
      * @param closeDelegate Ссылка на метод объекта, делегирующего управление закрытием.
      */
-    public SynchronizedLazyClosingDirector(ExceptionProcedure closeDelegate) {
+    public SynchronizedLazyClosingDirector(FailableProcedure closeDelegate) {
         closeDelegate_ = Objects.requireNonNull(closeDelegate, "closeDelegate");
     }
 

@@ -120,7 +120,7 @@ public class ConcurrentManagedObjManagerTest {
         });
     }
 
-    private static void forTestManager(FailableConsumer<ConcurrentManagedObjManager<AbstractSession>, Exception> consumer) throws Exception {
+    private static void forTestManager(FailableConsumer<ConcurrentManagedObjManager<AbstractSession>> consumer) throws Exception {
         ConcurrentManagedObjManager<AbstractSession> manager = new ConcurrentManagedObjManager<>();
         try {
             consumer.accept(manager);
@@ -286,7 +286,7 @@ public class ConcurrentManagedObjManagerTest {
         private final String secret_ = UUID.randomUUID().toString();
         protected final DataSource dataSource_;
 
-        public AbstractSession(String id, DataSource dataSource, FailableConsumer<AbstractSession, Exception> removeCallback) {
+        public AbstractSession(String id, DataSource dataSource, FailableConsumer<AbstractSession> removeCallback) {
             super(removeCallback);
             id_ = Objects.requireNonNull(id);
             dataSource_ = Objects.requireNonNull(dataSource);
@@ -313,7 +313,7 @@ public class ConcurrentManagedObjManagerTest {
         public ActiveSession(String id,
                              DataSource dataSource,
                              ExecutorService executorService,
-                             FailableConsumer<AbstractSession, Exception> closer) {
+                             FailableConsumer<AbstractSession> closer) {
             super(id, dataSource, closer);
             executorService_ = Objects.requireNonNull(executorService);
         }
@@ -338,7 +338,7 @@ public class ConcurrentManagedObjManagerTest {
      */
     private static final class PassiveSession extends AbstractSession {
 
-        public PassiveSession(String id, DataSource dataSource, FailableConsumer<AbstractSession, Exception> removeCallback) {
+        public PassiveSession(String id, DataSource dataSource, FailableConsumer<AbstractSession> removeCallback) {
             super(id, dataSource, removeCallback);
         }
 

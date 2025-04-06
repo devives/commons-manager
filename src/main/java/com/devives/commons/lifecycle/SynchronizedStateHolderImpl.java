@@ -16,8 +16,8 @@
  */
 package com.devives.commons.lifecycle;
 
-import com.devives.commons.lang.function.ExceptionFunction;
-import com.devives.commons.lang.function.ExceptionProcedure;
+import com.devives.commons.lang.function.FailableFunction;
+import com.devives.commons.lang.function.FailableProcedure;
 
 import java.util.function.Supplier;
 
@@ -53,12 +53,12 @@ public class SynchronizedStateHolderImpl extends StateHolderImpl implements Sync
     }
 
     @Override
-    public synchronized final void performAtomicWork(ExceptionProcedure procedure) throws Exception {
+    public synchronized final void performAtomicWork(FailableProcedure procedure) throws Exception {
         procedure.accept();
     }
 
     @Override
-    public synchronized final <R> R performAtomicWork(ExceptionFunction<R> function) throws Exception {
+    public synchronized final <R> R performAtomicWork(FailableFunction<R> function) throws Exception {
         return function.apply();
     }
 

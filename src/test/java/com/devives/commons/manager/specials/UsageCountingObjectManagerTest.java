@@ -63,7 +63,7 @@ public class UsageCountingObjectManagerTest {
         });
     }
 
-    private static void forTestManager(FailableConsumer<UsageCountingManager<String, SimpleTestItem>, Exception> consumer) throws Exception {
+    private static void forTestManager(FailableConsumer<UsageCountingManager<String, SimpleTestItem>> consumer) throws Exception {
         UsageCountingManager<String, SimpleTestItem> manager = new UsageCountingManager<>();
         try {
             consumer.accept(manager);

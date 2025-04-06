@@ -113,7 +113,7 @@ public class SimpleObjectManagerTest {
         });
     }
 
-    private static void forTestManager(FailableConsumer<Manager<String, SimpleTestItem>, Exception> consumer) throws Exception {
+    private static void forTestManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {
         Manager<String, SimpleTestItem> manager = new ConcurrentManagerImpl<>();
         try {
             consumer.accept(manager);

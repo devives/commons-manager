@@ -28,9 +28,9 @@ import java.util.Objects;
  */
 public abstract class SynchronizedManagedObjAbst<SELF extends ManagedObj> extends SynchronizedLifeCycleAbst implements ManagedObj {
 
-    private final FailableConsumer<SELF, Exception> removeCallback_;
+    private final FailableConsumer<SELF> removeCallback_;
 
-    public SynchronizedManagedObjAbst(FailableConsumer<SELF, Exception> removeCallback) {
+    public SynchronizedManagedObjAbst(FailableConsumer<SELF> removeCallback) {
         removeCallback_ = Objects.requireNonNull(removeCallback);
     }
 

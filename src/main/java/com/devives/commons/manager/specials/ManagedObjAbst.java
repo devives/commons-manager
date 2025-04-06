@@ -29,9 +29,9 @@ import java.util.Objects;
  */
 public abstract class ManagedObjAbst<SELF extends ManagedObj> extends LifeCycleAbst implements Closeable {
 
-    private final FailableConsumer<SELF, Exception> removeCallback_;
+    private final FailableConsumer<SELF> removeCallback_;
 
-    public ManagedObjAbst(FailableConsumer<SELF, Exception> removeCallback) {
+    public ManagedObjAbst(FailableConsumer<SELF> removeCallback) {
         removeCallback_ = Objects.requireNonNull(removeCallback);
     }
 

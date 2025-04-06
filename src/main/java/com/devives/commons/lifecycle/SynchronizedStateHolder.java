@@ -16,8 +16,8 @@
  */
 package com.devives.commons.lifecycle;
 
-import com.devives.commons.lang.function.ExceptionFunction;
-import com.devives.commons.lang.function.ExceptionProcedure;
+import com.devives.commons.lang.function.FailableFunction;
+import com.devives.commons.lang.function.FailableProcedure;
 
 /**
  * Concurrent state holder.
@@ -30,7 +30,7 @@ public interface SynchronizedStateHolder extends StateHolder {
      * @param procedure anonymous method
      * @throws Exception thrown from anonymous method.
      */
-    void performAtomicWork(ExceptionProcedure procedure) throws Exception;
+    void performAtomicWork(FailableProcedure procedure) throws Exception;
 
     /**
      * Execute an anonymous method in {@code synchronized} code block.
@@ -40,5 +40,5 @@ public interface SynchronizedStateHolder extends StateHolder {
      * @return result of anonymous method.
      * @throws Exception thrown from anonymous method.
      */
-    <R> R performAtomicWork(ExceptionFunction<R> function) throws Exception;
+    <R> R performAtomicWork(FailableFunction<R> function) throws Exception;
 }
