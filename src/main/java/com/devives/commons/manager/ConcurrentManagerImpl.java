@@ -160,7 +160,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         O result = null;
         // Optimistically get entry without lock.
         final Entry<O> entry = internalGetEntryIfPresent(key);
-        if (entry != null && entry.getObjectAndAdapter() != null) {
+        if (entry != null) {
             final EntryLock entryLock = acquireEntryLock(key);
             try {
                 entryLock.readLock().lock();
