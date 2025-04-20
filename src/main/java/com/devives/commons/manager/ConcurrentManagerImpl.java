@@ -158,6 +158,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
 
     protected final O doGetIfPresent(K key) {
         O result = null;
+        // Optimistically get entry without lock.
         final Entry<O> entry = internalGetEntryIfPresent(key);
         if (entry != null && entry.getObjectAndAdapter() != null) {
             final EntryLock entryLock = acquireEntryLock(key);
@@ -165,6 +166,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
                 entryLock.readLock().lock();
                 try {
                     result = entry.getObject();
+                    // If object non set, it's equals entry not present.
                     if (result != null) {
                         onEntryGet(entry);
                     }
@@ -233,14 +235,35 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         return result;
     }
 
+    /**
+     * @param k the key whose associated value is to be returned
+     * @return the value to which the specified key is mapped, or
+     * {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException if the specified key is null
+     * @see ConcurrentHashMap#get(Object)
+     */
     protected final Entry<O> internalGetEntryIfPresent(final K k) {
         return entryMap_.get(k);
     }
 
+    /**
+     * @param k     key with which the specified value is to be associated
+     * @param entry value to be associated with the specified key
+     * @throws NullPointerException if the specified key or value is null
+     *                              and this map does not permit null keys or values
+     * @see ConcurrentHashMap#put(Object, Object)
+     */
     protected final void internalPutEntry(final K k, final Entry<O> entry) {
         entryMap_.put(k, entry);
     }
 
+    /**
+     * @param k key whose mapping is to be removed from the map
+     * @return the previous value associated with <tt>key</tt>, or
+     * <tt>null</tt> if there was no mapping for <tt>key</tt>.
+     * @throws NullPointerException if the specified key is null
+     * @see ConcurrentHashMap#remove(Object)
+     */
     protected final Entry<O> internalRemoveEntry(final K k) {
         return entryMap_.remove(k);
     }
@@ -302,10 +325,12 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         return result;
     }
 
+    @SuppressWarnings("unchecked")
     protected <E extends EntryLock> E newEntryLock(K key) {
         return (E) new EntryLock(key);
     }
 
+    @SuppressWarnings("unchecked")
     protected <E extends Entry<?>> E newEntry(K key) {
         return (E) new Entry(key);
     }
