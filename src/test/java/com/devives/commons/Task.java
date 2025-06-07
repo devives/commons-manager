@@ -16,7 +16,7 @@
  */
 package com.devives.commons;
 
-import com.devives.commons.lang.util.DurationMeter;
+import com.devives.commons.util.DurationMeter;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
