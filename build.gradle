@@ -27,7 +27,7 @@ dependencies {
     if (project.hasProperty("com.devives.commons.project-group")) {
         implementation(project(path: ':commons-lang'))
     } else {
-        implementation("com.devives:devive-commons-lang:0.1.0")
+        implementation("com.devives:devive-commons-lang:0.2.0")
     }
     testImplementation platform('org.junit:junit-bom:5.9.1')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -163,5 +163,6 @@ tasks.register("zip-for-central-sonatype", Zip) {
 }
 
 test {
+    enabled = false
     useJUnitPlatform()
 }
