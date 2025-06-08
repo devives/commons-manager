@@ -104,6 +104,8 @@ publishing {
                 artifactId = archivesBaseName
                 url = "https://github.com/devives/commons-manager"
                 description = "Devive Commons Manager"
+                description = "A common class library of objects with a lifecycle, and a manager of these object"
+                name = "Devive Commons Manager"
 
                 properties = [
                         "project.build.sourceEncoding": "UTF-8"
