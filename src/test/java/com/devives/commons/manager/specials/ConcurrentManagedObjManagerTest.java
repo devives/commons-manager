@@ -143,16 +143,16 @@ public class ConcurrentManagedObjManagerTest {
         private final DataSource dataSource_;
 
         public ServerContextImpl() {
-            dataSource_ = ProxyBuilder.build(DataSource.class, new Object() {
+            dataSource_ = ProxyBuilder.forClasses(DataSource.class).setTarget(new Object() {
                 public Connection getConnection() throws SQLException {
-                    return ProxyBuilder.build(Connection.class, new AutoCloseable() {
+                    return ProxyBuilder.forClasses(Connection.class).setTarget(new AutoCloseable() {
                         @Override
                         public void close() throws Exception {
 
                         }
-                    });
+                    }).build();
                 }
-            });
+            }).build();
         }
 
         @Override
