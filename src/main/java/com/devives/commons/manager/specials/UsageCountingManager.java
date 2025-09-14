@@ -22,6 +22,8 @@ import com.devives.commons.lifecycle.CloseableAbst;
 import com.devives.commons.manager.ConcurrentManagerImpl;
 import com.devives.commons.manager.ManagerException;
 import com.devives.commons.manager.ObjectFactory;
+import com.devives.commons.publisher.Publisher;
+import com.devives.commons.publisher.Publishers;
 
 import java.io.Serializable;
 import java.util.Objects;
@@ -31,48 +33,76 @@ import java.util.function.Supplier;
 public class UsageCountingManager<K, O> extends CloseableAbst implements Serializable {
 
     private static final long serialVersionUID = 8389806804677309189L;
-    private final LocalManagerImpl<K, O> manager_;
+    private final InternalManagerImpl<K, O> internalManager_;
 
     public UsageCountingManager() {
-        manager_ = new LocalManagerImpl<>();
+        this(new InternalManagerImpl<>(Publishers
+                .<EventListener>builder()
+                .listeners(b -> b.setSynchronized())
+                .build()));
+    }
+
+    public UsageCountingManager(InternalManagerImpl<K, O> internalManager) {
+        internalManager_ = Objects.requireNonNull(internalManager, "internalManager");
     }
 
     @Override
     protected void onClose() throws Exception {
-        manager_.close();
+        internalManager_.close();
     }
 
     public O acquire(K key) throws ManagerException {
-        return manager_.get(key);
+        return internalManager_.get(key);
     }
 
     public O acquire(K key, Supplier<ObjectFactory<O>> factorySupplier) {
-        return manager_.computeIfAbsent(key, factorySupplier);
+        return internalManager_.computeIfAbsent(key, factorySupplier);
     }
 
     public void release(K key) {
-        manager_.release(key);
+        internalManager_.release(key);
     }
 
     public boolean isEmpty() {
-        return manager_.isEmpty();
+        return internalManager_.isEmpty();
     }
 
     public long size() {
-        return manager_.size();
+        return internalManager_.size();
     }
 
     public boolean isRemoveUnusedObjects() {
-        return manager_.isRemoveUnusedObjects();
+        return internalManager_.isRemoveUnusedObjects();
     }
 
     public void setRemoveUnusedObjects(boolean value) {
-        manager_.setRemoveUnusedObjects(value);
+        internalManager_.setRemoveUnusedObjects(value);
     }
 
-    protected static class LocalManagerImpl<K, O> extends ConcurrentManagerImpl<K, O> {
+    public void addListener(EventListener listener) {
+        internalManager_.addListener(listener);
+    }
+
+    public void removeListener(EventListener listener) {
+        internalManager_.removeListener(listener);
+    }
+
+
+    public interface EventListener<O> {
+
+        void afterAddItem(O object);
+
+        void beforeRemoveItem(O object);
+    }
+
+    protected static class InternalManagerImpl<K, O> extends ConcurrentManagerImpl<K, O> {
         private static final long serialVersionUID = 242380967546124799L;
         private volatile boolean removeUnusedObjects_ = true;
+        private final Publisher<EventListener> publisher_;
+
+        public InternalManagerImpl(Publisher<EventListener> publisher) {
+            publisher_ = Objects.requireNonNull(publisher, "publisher");
+        }
 
         public boolean isRemoveUnusedObjects() {
             return removeUnusedObjects_;
@@ -82,24 +112,43 @@ public class UsageCountingManager<K, O> extends CloseableAbst implements Seriali
             removeUnusedObjects_ = removeUnusedObjects;
         }
 
-        @Override
-        protected <E extends Entry<?>> E newEntry(K key) {
-            return (E) new InheritedEntry<O>(key);
+        public void addListener(EventListener listener) {
+            publisher_.getListeners().add(listener);
+        }
+
+        public void removeListener(EventListener listener) {
+            publisher_.getListeners().remove(listener);
         }
 
         @Override
-        protected void onEntryGet(Entry<O> entry) {
+        protected <E extends Entry<?>> E newEntry(K key) {
+            return (E) new InheritedEntry<O>();
+        }
+
+        @Override
+        protected void onEntryAdded(Entry<O> entry) {
+            publisher_.publish(listener -> listener.afterAddItem(entry.getObject()));
+        }
+
+        @Override
+        protected void onEntryRemoving(Entry<O> entry) {
+            publisher_.publish(listener -> listener.beforeRemoveItem(entry.getObject()));
+        }
+
+        @Override
+        protected void onEntryGot(Entry<O> entry) {
             ((InheritedEntry<O>) entry).incUsages();
         }
 
         public final void release(K key) {
             final EntryLock entryLock = acquireEntryLock(key);
             try {
-                entryLock.readLock().lock();
-                InheritedEntry<O> entry = (InheritedEntry<O>) internalGetEntryIfPresent(key);
-                Objects.requireNonNull(entry, String.format("Key '%s' not present in manager.", key));
                 long usages;
+                InheritedEntry<O> entry;
+                entryLock.readLock().lock();
                 try {
+                    entry = (InheritedEntry<O>) internalGetEntryIfPresent(key);
+                    Objects.requireNonNull(entry, String.format("Key '%s' not present in manager.", key));
                     usages = entry.decUsages();
                 } finally {
                     entryLock.readLock().unlock();
@@ -143,15 +192,10 @@ public class UsageCountingManager<K, O> extends CloseableAbst implements Seriali
                 });
             }
 
-
             public AtomicLong getNumUsages() {
                 return usageCounter;
             }
 
-
-            public InheritedEntry(Object key) {
-                super(key);
-            }
         }
     }
 }

@@ -22,7 +22,6 @@ import com.devives.commons.lifecycle.SynchronizedCloseableAbst;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -144,7 +143,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
                 if (entry != null) {
                     result = entry.getObject();
                     if (result != null) {
-                        onEntryGet(entry);
+                        onEntryGot(entry);
                     }
                 }
                 return result;
@@ -168,7 +167,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
                     result = entry.getObject();
                     // If object non set, it's equals entry not present.
                     if (result != null) {
-                        onEntryGet(entry);
+                        onEntryGot(entry);
                     }
                 } finally {
                     entryLock.readLock().unlock();
@@ -215,6 +214,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
                                 factory.destroyObject(result);
                                 throw e;
                             }
+                            onEntryAdded(entry);
                         }
                     } finally {
                         // Downgrade lock.
@@ -224,7 +224,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
                 } else {
                     objectAndAdapter = entry.getObjectAndAdapter();
                 }
-                onEntryGet(entry);
+                onEntryGot(entry);
                 result = objectAndAdapter.object;
             } finally {
                 entryLock.readLock().unlock();
@@ -273,12 +273,13 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         final EntryLock entryLock = acquireEntryLock(key);
         try {
             entryLock.writeLock().lock();
+            ObjectAndAdapter<O> objectAndAdapter;
             try {
-                ObjectAndAdapter<O> objectAndAdapter;
                 Entry<O> entry = internalGetEntryIfPresent(key);
                 if (entry != null) {
                     objectAndAdapter = entry.getObjectAndAdapter();
                     if (objectAndAdapter != null) {
+                        onEntryRemoving(entry);
                         try {
                             try {
                                 doObjectStop(objectAndAdapter);
@@ -315,7 +316,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
                     factory.destroyObject(result);
                     throw e;
                 }
-                onEntryGet(entry);
+                onEntryAdded(entry);
             } finally {
                 entryLock.writeLock().unlock();
             }
@@ -332,7 +333,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
 
     @SuppressWarnings("unchecked")
     protected <E extends Entry<?>> E newEntry(K key) {
-        return (E) new Entry(key);
+        return (E) new Entry();
     }
 
     protected final O doRemove(K key) throws Exception {
@@ -341,15 +342,14 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         if (entry != null) {
             final EntryLock entryLock = acquireEntryLock(key);
             try {
-                Lock lock = entryLock.writeLock();
-                lock.lock();
+                entryLock.writeLock().lock();
                 try {
                     entry = internalGetEntryIfPresent(key);
                     if (entry != null) {
                         result = doRemoveEntry(key, entry);
                     }
                 } finally {
-                    lock.unlock();
+                    entryLock.writeLock().unlock();
                 }
             } finally {
                 releaseEntryLock(key);
@@ -358,10 +358,14 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         return result;
     }
 
+    /**
+     * The method is called after a write lock is set.
+     */
     protected final O doRemoveEntry(K key, Entry<O> entry) throws Exception {
         O result = null;
         final ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
         if (objectAndAdapter != null) {
+            onEntryRemoving(entry);
             try {
                 try {
                     doObjectStop(objectAndAdapter);
@@ -385,6 +389,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         final List<O> list = new ArrayList<>();
         entryMap_.keySet().forEach(key -> {
             try {
+                // Write lock is setting in doRemove().
                 O item = doRemove((K) key);
                 if (item != null) {
                     list.add(item);
@@ -424,7 +429,37 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         return new ManagerException(message, cause);
     }
 
-    protected void onEntryGet(Entry<O> entry) {
+    /**
+     * This method is called after a reference to the managed object has been successfully obtained.
+     * <p>
+     * At the time of invocation, a read lock is set for the record.
+     *
+     * @param entry the record
+     */
+    protected void onEntryGot(Entry<O> entry) {
+
+    }
+
+    /**
+     * This method is called after a record has been successfully created and the managed object has been started.
+     * <p>
+     * At the time of invocation, a write lock is set for the record. The current thread will be able to obtain a valid object
+     * by calling {@link #get(Object)} or {@link #getIfPresent(Object)}. Other threads will wait for the lock to be released.
+     *
+     * @param entry the record
+     */
+    protected void onEntryAdded(Entry<O> entry) {
+
+    }
+
+    /**
+     * This method is called before stopping the managed object and deleting the record.
+     * <p>
+     * At the time of invocation, a write lock is set for the record.
+     *
+     * @param entry the record
+     */
+    protected void onEntryRemoving(Entry<O> entry) {
 
     }
 
@@ -492,14 +527,14 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
     /**
      * Immutable class for storing of the pair of objects.
      *
-     * @param <I> type of managed object
+     * @param <O> type of managed object
      */
-    protected final static class ObjectAndAdapter<I> {
+    protected final static class ObjectAndAdapter<O> {
 
-        public final I object;
-        public final LifeCycleAdapter<I> adapter;
+        public final O object;
+        public final LifeCycleAdapter<O> adapter;
 
-        public ObjectAndAdapter(I object, LifeCycleAdapter<I> adapter) {
+        public ObjectAndAdapter(O object, LifeCycleAdapter<O> adapter) {
             this.object = Objects.requireNonNull(object);
             this.adapter = Objects.requireNonNull(adapter);
         }
@@ -529,36 +564,30 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
 
     }
 
-    protected static class Entry<I> implements Serializable {
+    protected static class Entry<O> implements Serializable {
         private static final long serialVersionUID = -5529739784330238632L;
         /**
          * Volatile variable for the atomic non blocking read write operations.
          */
-        private volatile ObjectAndAdapter<I> objectAndAdapter_ = null;
+        private volatile ObjectAndAdapter<O> objectAndAdapter_ = null;
 
-        protected Entry(Object key) {
-
-        }
-
-        public I getObject() {
-            final ObjectAndAdapter<I> objectAndAdapter = objectAndAdapter_;
+        public O getObject() {
+            final ObjectAndAdapter<O> objectAndAdapter = objectAndAdapter_;
             return objectAndAdapter != null ? objectAndAdapter.object : null;
         }
 
-        public ObjectAndAdapter<I> getObjectAndAdapter() {
+        public ObjectAndAdapter<O> getObjectAndAdapter() {
             return objectAndAdapter_;
         }
 
-        public ObjectAndAdapter<I> initObjectAndAdapter(I object, LifeCycleAdapter<I> lifeCycleAdapter) {
-            final ObjectAndAdapter<I> objectAndAdapter = new ObjectAndAdapter<I>(object, lifeCycleAdapter);
+        public ObjectAndAdapter<O> initObjectAndAdapter(O object, LifeCycleAdapter<O> lifeCycleAdapter) {
+            final ObjectAndAdapter<O> objectAndAdapter = new ObjectAndAdapter<O>(object, lifeCycleAdapter);
             objectAndAdapter_ = objectAndAdapter;
             return objectAndAdapter;
         }
 
-        public ObjectAndAdapter<I> clearObjectAndAdapter() {
-            final ObjectAndAdapter<I> objectAndAdapter = objectAndAdapter_;
+        public void clearObjectAndAdapter() {
             objectAndAdapter_ = null;
-            return objectAndAdapter;
         }
 
     }
