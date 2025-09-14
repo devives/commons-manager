@@ -167,6 +167,6 @@ tasks.register("zip-for-central-sonatype", Zip) {
 
 test {
     jvmArgs = ['-Xmx16G']
-    enabled = false
+    enabled = true
     useJUnitPlatform()
 }
