@@ -16,6 +16,7 @@
  */
 package com.devives.commons.manager;
 
+import com.devives.commons.manager.specials.AutoCloseableFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -40,11 +41,11 @@ public class InheritedObjectManagerTest {
             TestCloseableItem item1_1 = manager.getByAdditionalField("item1-1");
             Assertions.assertEquals(item1, item1_1);
         } finally {
-            manager.close();
+            manager.clear();
         }
     }
 
-    private static class TestCloseableItemManager extends ConcurrentManagerImpl<String, TestCloseableItem> {
+    private static class TestCloseableItemManager extends ConcurrentKeyedManager<String, TestCloseableItem> {
         private static final long serialVersionUID = -9117715476640371271L;
         private final ConcurrentMap<String, TestCloseableItem> additionalIndex_ = new ConcurrentHashMap<>();
 

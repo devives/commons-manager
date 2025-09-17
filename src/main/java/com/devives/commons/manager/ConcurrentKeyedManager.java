@@ -17,22 +17,23 @@
 package com.devives.commons.manager;
 
 import com.devives.commons.lang.ExceptionUtils;
-import com.devives.commons.lifecycle.SynchronizedCloseableAbst;
+import com.devives.commons.lifecycle.UsageCounter;
 
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Thread-safe implementation of {@link Manager}.
+ * Thread-safe concurrent implementation of {@link Manager}.
  *
  * @param <K> type of key
  * @param <O> type of managed object
  * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
  */
-public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst implements Manager<K, O>, Serializable {
+public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Serializable {
     private static final long serialVersionUID = 2387557309207392162L;
     private final Map<K, EntryLock> lockMap_ = new ConcurrentHashMap<>();
     private final Map<K, Entry<O>> entryMap_ = new ConcurrentHashMap<>();
@@ -51,7 +52,6 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
     public O get(K key) throws ManagerException {
         try {
             Objects.requireNonNull(key);
-            validateOpened();
             final O result = doGet(key);
             if (result == null) {
                 throw createManagerException(String.format("The manager does not contain an object with the key '%s'.", key), null);
@@ -65,7 +65,6 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
     @Override
     public O getIfPresent(K key) {
         Objects.requireNonNull(key);
-        validateOpened();
         return doGetIfPresent(key);
     }
 
@@ -74,8 +73,18 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         try {
             Objects.requireNonNull(key);
             Objects.requireNonNull(factorySupplier);
-            validateOpened();
-            return doComputeIfAbsent(key, factorySupplier);
+            return doComputeIfAbsent(key, (ignore) -> factorySupplier.get());
+        } catch (Exception e) {
+            throw ExceptionUtils.asUnchecked(e);
+        }
+    }
+
+    @Override
+    public O computeIfAbsent(K key, Function<K, ObjectFactory<O>> keyedFactorySupplier) {
+        try {
+            Objects.requireNonNull(key);
+            Objects.requireNonNull(keyedFactorySupplier);
+            return doComputeIfAbsent(key, keyedFactorySupplier);
         } catch (Exception e) {
             throw ExceptionUtils.asUnchecked(e);
         }
@@ -86,7 +95,6 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         try {
             Objects.requireNonNull(key);
             Objects.requireNonNull(factory);
-            validateOpened();
             return doReplace(key, factory);
         } catch (Exception e) {
             throw ExceptionUtils.asUnchecked(e);
@@ -97,7 +105,6 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
     public O remove(K key) {
         try {
             Objects.requireNonNull(key);
-            validateOpened();
             return doRemove(key);
         } catch (Exception e) {
             throw ExceptionUtils.asUnchecked(e);
@@ -106,13 +113,11 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
 
     @Override
     public List<O> removeAll() {
-        validateOpened();
         return doRemoveAll();
     }
 
     @Override
     public void clear() {
-        validateOpened();
         doClear();
     }
 
@@ -124,11 +129,6 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
     @Override
     public long size() {
         return entryMap_.size();
-    }
-
-    @Override
-    protected void onClose() throws Exception {
-        doRemoveAll();
     }
 
     protected final O doGet(K key) {
@@ -177,7 +177,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         return result;
     }
 
-    protected final O doComputeIfAbsent(K key, Supplier<ObjectFactory<O>> factorySupplier) throws Exception {
+    protected final O doComputeIfAbsent(K key, Function<K, ObjectFactory<O>> factorySupplier) throws Exception {
         O result = null;
         final EntryLock entryLock = acquireEntryLock(key);
         try {
@@ -192,7 +192,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
                         entry = Optional.ofNullable(internalGetEntryIfPresent(key)).orElseGet(() -> newEntry(key));
                         objectAndAdapter = entry.getObjectAndAdapter();
                         if (objectAndAdapter == null) {
-                            final ObjectFactory<O> factory = factorySupplier.get();
+                            final ObjectFactory<O> factory = factorySupplier.apply(key);
                             result = doObjectCreate(factory, key);
                             try {
                                 objectAndAdapter = entry.initObjectAndAdapter(result, factory);
@@ -418,14 +418,14 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
             if (entry == null) {
                 entry = newEntryLock(k);
             }
-            entry.incInternalUsage();
+            entry.incUsageCount();
             return entry;
         });
     }
 
     protected final void releaseEntryLock(final K k) {
         lockMap_.computeIfPresent(k, (key, e) -> {
-            final long usages = e.decInternalUsage();
+            final long usages = e.decUsageCount();
             if (usages == 0) {
                 return null;
             } else if (usages > 0) {
@@ -543,36 +543,41 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
     protected final static class ObjectAndAdapter<O> {
 
         public final O object;
-        public final LifeCycleAdapter<O> adapter;
+        public final ObjectFactory<O> adapter;
 
-        public ObjectAndAdapter(O object, LifeCycleAdapter<O> adapter) {
+        public ObjectAndAdapter(O object, ObjectFactory<O> adapter) {
             this.object = Objects.requireNonNull(object);
             this.adapter = Objects.requireNonNull(adapter);
         }
 
     }
 
-    protected static class EntryLock extends ReentrantReadWriteLock {
+    protected static class EntryLock extends ReentrantReadWriteLock implements UsageCounter {
         private static final long serialVersionUID = -5529739544330238632L;
         /**
          * Number of threads with registered interest in this key.
          * register(K) increments this counter and deRegister(K) decrements it.
          * Invariant: empty entry will not be dropped unless internalUsageCount is 0.
          */
-        private long internalUsageCount_ = 0;
+        private long usageCount_ = 0;
 
         protected EntryLock(Object key) {
             super(true);
         }
 
-        public long incInternalUsage() {
-            return ++internalUsageCount_;
+        public long getUsageCount() {
+            return usageCount_;
         }
 
-        public long decInternalUsage() {
-            return --internalUsageCount_;
+        @Override
+        public long incUsageCount() {
+            return ++usageCount_;
         }
 
+        @Override
+        public long decUsageCount() {
+            return --usageCount_;
+        }
     }
 
     protected static class Entry<O> implements Serializable {
@@ -591,7 +596,7 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
             return objectAndAdapter_;
         }
 
-        public ObjectAndAdapter<O> initObjectAndAdapter(O object, LifeCycleAdapter<O> lifeCycleAdapter) {
+        public ObjectAndAdapter<O> initObjectAndAdapter(O object, ObjectFactory<O> lifeCycleAdapter) {
             final ObjectAndAdapter<O> objectAndAdapter = new ObjectAndAdapter<O>(object, lifeCycleAdapter);
             objectAndAdapter_ = objectAndAdapter;
             return objectAndAdapter;

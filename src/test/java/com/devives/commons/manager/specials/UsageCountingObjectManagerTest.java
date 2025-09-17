@@ -17,6 +17,7 @@
 package com.devives.commons.manager.specials;
 
 import com.devives.commons.lang.function.FailableConsumer;
+import com.devives.commons.manager.UsageCountingManager;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -68,7 +69,7 @@ public class UsageCountingObjectManagerTest {
         try {
             consumer.accept(manager);
         } finally {
-            manager.close();
+            manager.clear();
         }
     }
 

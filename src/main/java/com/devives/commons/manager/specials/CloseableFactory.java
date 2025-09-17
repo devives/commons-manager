@@ -16,31 +16,13 @@
  */
 package com.devives.commons.manager.specials;
 
-import com.devives.commons.lang.function.FailableConsumer;
 import com.devives.commons.lifecycle.Closeable;
-import com.devives.commons.lifecycle.LifeCycleAbst;
-
-import java.util.Objects;
+import com.devives.commons.manager.ObjectFactory;
 
 /**
- * Implementation of {@link ManagedObj}.
- *
- * @param <SELF> self type.
+ * @param <I> type of constructed object.
+ * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
  */
-public abstract class ManagedObjAbst<SELF extends ManagedObj> extends LifeCycleAbst implements Closeable {
+public abstract class CloseableFactory<I extends Closeable> extends CloseableAdapter<I> implements ObjectFactory<I> {
 
-    private final FailableConsumer<SELF> removeCallback_;
-
-    public ManagedObjAbst(FailableConsumer<SELF> removeCallback) {
-        removeCallback_ = Objects.requireNonNull(removeCallback);
-    }
-
-    @Override
-    public final void close() throws Exception {
-        onClose();
-    }
-
-    protected void onClose() throws Exception {
-        removeCallback_.accept((SELF) this);
-    }
 }

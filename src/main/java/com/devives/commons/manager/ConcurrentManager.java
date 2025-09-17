@@ -17,13 +17,17 @@
 package com.devives.commons.manager;
 
 /**
- * Life cycle adapter for {@link AutoCloseable} object.
+ * Interface of concurrent thread-safe manager of objects.
+ * <p>
+ * Обеспечивает синхронизацию создания, запуска, остановки и уничтожения управляемого объекта между потоками.
  *
- * @param <I> type of closeable object.
+ * @param <K> type of key
+ * @param <O> type of managed object
+ * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
+ * @see Manager
  */
-public class AutoCloseableAdapter<I extends AutoCloseable> implements LifeCycleAdapter<I> {
-    @Override
-    public void destroyObject(I object) throws Exception {
-        object.close();
-    }
+public interface ConcurrentManager<K, O> extends Manager<K, O> {
+
+
+
 }

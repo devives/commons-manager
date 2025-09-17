@@ -14,14 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.specials;
 
-import com.devives.commons.lifecycle.Closeable;
+import com.devives.commons.manager.ObjectFactory;
 
 /**
  * @param <I> type of constructed object.
  * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
  */
-public abstract class CloseableFactory<I extends Closeable> extends CloseableAdapter<I> implements ObjectFactory<I> {
+public abstract class AutoCloseableFactory<I extends AutoCloseable> extends AutoCloseableAdapter<I> implements ObjectFactory<I> {
 
+    @Override
+    public void destroyObject(I object) throws Exception {
+        object.close();
+    }
 }

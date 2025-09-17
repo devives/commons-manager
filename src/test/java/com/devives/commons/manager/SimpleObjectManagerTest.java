@@ -114,11 +114,11 @@ public class SimpleObjectManagerTest {
     }
 
     private static void forTestManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {
-        Manager<String, SimpleTestItem> manager = new ConcurrentManagerImpl<>();
+        Manager<String, SimpleTestItem> manager = new ConcurrentKeyedManager<>();
         try {
             consumer.accept(manager);
         } finally {
-            manager.close();
+            manager.clear();
         }
     }
 

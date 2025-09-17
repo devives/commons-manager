@@ -14,41 +14,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager.specials;
+package com.devives.commons.manager;
 
 
 import com.devives.commons.lang.ExceptionUtils;
-import com.devives.commons.lifecycle.CloseableAbst;
-import com.devives.commons.manager.ConcurrentManagerImpl;
-import com.devives.commons.manager.ManagerException;
-import com.devives.commons.manager.ObjectFactory;
 import com.devives.commons.publisher.Publisher;
 import com.devives.commons.publisher.Publishers;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class UsageCountingManager<K, O> extends CloseableAbst implements Serializable {
+/**
+ * Object manager with usage counting.
+ *
+ * @param <K> key type.
+ * @param <O> managed object type.
+ */
+public class UsageCountingManager<K, O> implements Serializable {
 
     private static final long serialVersionUID = 8389806804677309189L;
-    private final InternalManagerImpl<K, O> internalManager_;
+    private final InternalManager<K, O> internalManager_;
 
     public UsageCountingManager() {
-        this(new InternalManagerImpl<>(Publishers
+        this(new InternalManager<>(Publishers
                 .<EventListener>builder()
                 .listeners(b -> b.setSynchronized())
                 .build()));
     }
 
-    public UsageCountingManager(InternalManagerImpl<K, O> internalManager) {
+    protected UsageCountingManager(InternalManager<K, O> internalManager) {
         internalManager_ = Objects.requireNonNull(internalManager, "internalManager");
-    }
-
-    @Override
-    protected void onClose() throws Exception {
-        internalManager_.close();
     }
 
     public O acquire(K key) throws ManagerException {
@@ -59,8 +59,57 @@ public class UsageCountingManager<K, O> extends CloseableAbst implements Seriali
         return internalManager_.computeIfAbsent(key, factorySupplier);
     }
 
+    public O acquire(K key, Function<K, ObjectFactory<O>> keyedFactorySupplier) {
+        return internalManager_.computeIfAbsent(key, keyedFactorySupplier);
+    }
+
+    /**
+     * Метод перебора всех объектов менеджера.
+     *
+     * @param visitor Визитёр
+     */
+    public void forEach(Consumer<O> visitor) {
+        internalManager_.keySet().forEach((key) -> {
+            O object = internalManager_.getIfPresent(key);
+            if (object != null) {
+                // Usage count was increased if object returned.
+                try {
+                    visitor.accept(object);
+                } finally {
+                    internalManager_.release(key);
+                }
+            }
+        });
+    }
+
     public void release(K key) {
         internalManager_.release(key);
+    }
+
+    /**
+     * Removes a key and its corresponding object from the manager.
+     *
+     * @param key key
+     * @return instance of {@code O} or {@code null}.
+     */
+    public O remove(K key) {
+        return internalManager_.remove(key);
+    }
+
+    /**
+     * Remove all instances from manager.
+     *
+     * @return a list containing all removed instances.
+     */
+    public List<O> removeAll() {
+        return internalManager_.removeAll();
+    }
+
+    /**
+     * Remove all instances from manager.
+     */
+    public void clear() {
+        internalManager_.clear();
     }
 
     public boolean isEmpty() {
@@ -95,12 +144,12 @@ public class UsageCountingManager<K, O> extends CloseableAbst implements Seriali
         void beforeRemoveItem(O object);
     }
 
-    protected static class InternalManagerImpl<K, O> extends ConcurrentManagerImpl<K, O> {
+    protected static class InternalManager<K, O> extends ConcurrentKeyedManager<K, O> {
         private static final long serialVersionUID = 242380967546124799L;
         private volatile boolean removeUnusedObjects_ = true;
         private final Publisher<EventListener> publisher_;
 
-        public InternalManagerImpl(Publisher<EventListener> publisher) {
+        public InternalManager(Publisher<EventListener> publisher) {
             publisher_ = Objects.requireNonNull(publisher, "publisher");
         }
 
@@ -122,7 +171,7 @@ public class UsageCountingManager<K, O> extends CloseableAbst implements Seriali
 
         @Override
         protected <E extends Entry<?>> E newEntry(K key) {
-            return (E) new InheritedEntry<O>();
+            return (E) new CountingEntry<O>();
         }
 
         @Override
@@ -137,17 +186,17 @@ public class UsageCountingManager<K, O> extends CloseableAbst implements Seriali
 
         @Override
         protected void onEntryGot(Entry<O> entry) {
-            ((InheritedEntry<O>) entry).incUsages();
+            ((CountingEntry<O>) entry).incUsages();
         }
 
         public final void release(K key) {
             final EntryLock entryLock = acquireEntryLock(key);
             try {
                 long usages;
-                InheritedEntry<O> entry;
+                CountingEntry<O> entry;
                 entryLock.readLock().lock();
                 try {
-                    entry = (InheritedEntry<O>) internalGetEntryIfPresent(key);
+                    entry = (CountingEntry<O>) internalGetEntryIfPresent(key);
                     Objects.requireNonNull(entry, String.format("Key '%s' not present in manager.", key));
                     usages = entry.decUsages();
                 } finally {
@@ -170,7 +219,7 @@ public class UsageCountingManager<K, O> extends CloseableAbst implements Seriali
             }
         }
 
-        protected static class InheritedEntry<I> extends Entry<I> {
+        protected static class CountingEntry<I> extends Entry<I> {
             private static final long serialVersionUID = 1626761723478454362L;
             private final AtomicLong usageCounter = new AtomicLong();
 
@@ -190,10 +239,6 @@ public class UsageCountingManager<K, O> extends CloseableAbst implements Seriali
                     }
                     return x + dx;
                 });
-            }
-
-            public AtomicLong getNumUsages() {
-                return usageCounter;
             }
 
         }

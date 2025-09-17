@@ -17,20 +17,21 @@
 package com.devives.commons.manager.specials;
 
 import com.devives.commons.lang.function.FailableConsumer;
-import com.devives.commons.lifecycle.SynchronizedLifeCycleAbst;
+import com.devives.commons.lifecycle.AbstractLifeCycle;
+import com.devives.commons.lifecycle.Closeable;
 
 import java.util.Objects;
 
 /**
- * Synchronize implementation of {@link ManagedObj}.
+ * Implementation of {@link Managed}.
  *
  * @param <SELF> self type.
  */
-public abstract class SynchronizedManagedObjAbst<SELF extends ManagedObj> extends SynchronizedLifeCycleAbst implements ManagedObj {
+public abstract class AbstractManaged<SELF extends Managed> extends AbstractLifeCycle implements Closeable {
 
     private final FailableConsumer<SELF> removeCallback_;
 
-    public SynchronizedManagedObjAbst(FailableConsumer<SELF> removeCallback) {
+    public AbstractManaged(FailableConsumer<SELF> removeCallback) {
         removeCallback_ = Objects.requireNonNull(removeCallback);
     }
 

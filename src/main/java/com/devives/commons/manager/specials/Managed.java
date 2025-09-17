@@ -14,18 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.specials;
 
 import com.devives.commons.lifecycle.Closeable;
+import com.devives.commons.lifecycle.LifeCycle;
 
 /**
- * Life cycle adapter for {@link Closeable} object.
  *
- * @param <I> type of closeable object.
  */
-public class CloseableAdapter<I extends Closeable> implements LifeCycleAdapter<I> {
-    @Override
-    public void destroyObject(I object) throws Exception {
-        object.close();
-    }
+public interface Managed extends LifeCycle, Closeable {
+
+
 }

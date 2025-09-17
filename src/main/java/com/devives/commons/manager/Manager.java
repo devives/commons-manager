@@ -16,12 +16,11 @@
  */
 package com.devives.commons.manager;
 
-import com.devives.commons.lifecycle.Closeable;
-
-import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -35,10 +34,15 @@ import java.util.function.Supplier;
  * @param <O> type of managed object
  * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
  */
-public interface Manager<K, O> extends Closeable {
+public interface Manager<K, O> {
 
     /**
      * Return instance of the class {@code O} corresponding to the key.
+     * <p>
+     * При получении ссылки на объект выполняется блокировка на чтение. Если в этот момент другой поток установил
+     * блокировку на запись для выполняет операции запуска {@link ObjectFactory#startObject(Object)} или
+     * остановки {@link ObjectFactory#stopObject(Object)} запрашиваемого объекта, метод будет ждать снятия блокировки
+     * на запись.
      *
      * @param key key
      * @return instance of {@code O}
@@ -65,6 +69,8 @@ public interface Manager<K, O> extends Closeable {
      * @see ConcurrentHashMap#computeIfAbsent(Object, Function)
      */
     O computeIfAbsent(K key, Supplier<ObjectFactory<O>> factorySupplier);
+
+    O computeIfAbsent(K key, Function<K, ObjectFactory<O>> factorySupplier);
 
     /**
      * Put new instance of {@code O} in to manager.

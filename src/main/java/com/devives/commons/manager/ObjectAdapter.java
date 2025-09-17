@@ -22,9 +22,8 @@ package com.devives.commons.manager;
  * Brings the object's life cycle to the life cycle of objects managed by the manager.
  *
  * @param <O> type of the object.
- * @see com.devives.commons.lifecycle.LifeCycle
  */
-public interface LifeCycleAdapter<O> {
+public interface ObjectAdapter<O> {
 
     default void startObject(O object) throws Exception {
 
@@ -41,4 +40,5 @@ public interface LifeCycleAdapter<O> {
     default void destroyObject(O object) throws Exception {
 
     }
+
 }

@@ -21,7 +21,7 @@ package com.devives.commons.manager;
  *
  * @param <O> type of objects to create.
  */
-public interface ObjectFactory<O> extends LifeCycleAdapter<O> {
+public interface ObjectFactory<O> extends ObjectAdapter<O> {
 
     /**
      * Creates a new instance of class <tt>&lt;O&gt;</tt>.
@@ -43,4 +43,5 @@ public interface ObjectFactory<O> extends LifeCycleAdapter<O> {
      * @throws Exception if creation failed.
      */
     O createObject() throws Exception;
+
 }

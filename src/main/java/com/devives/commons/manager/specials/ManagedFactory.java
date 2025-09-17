@@ -14,12 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.specials;
 
-/**
- * @param <I> type of constructed object.
- * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
- */
-public abstract class AutoCloseableFactory<I extends AutoCloseable> extends AutoCloseableAdapter<I> implements ObjectFactory<I> {
+import com.devives.commons.manager.ObjectAdapter;
 
+public interface ManagedFactory<K, O extends Managed, M> extends ObjectAdapter<O> {
+
+    K buildKey(long sequence);
+
+    O createObject(K key, M manager) throws Exception;
+
+    default void destroyObject(O object) throws Exception {
+        object.close();
+    }
 }

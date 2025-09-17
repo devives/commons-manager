@@ -16,6 +16,7 @@
  */
 package com.devives.commons.manager.specials;
 
+import com.devives.commons.lifecycle.LifeCycle;
 import com.devives.commons.lifecycle.SynchronizedCloseableAbst;
 import com.devives.commons.manager.*;
 
@@ -32,7 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @param <O> type of managed object
  */
-public class ConcurrentManagedObjManager<O extends Managed> extends SynchronizedCloseableAbst implements Serializable {
+public class ConcurrentLifeCycleManager<O extends LifeCycle> extends SynchronizedCloseableAbst implements Serializable {
 
     private static final long serialVersionUID = 4885566608544537251L;
     private final Map<IdentityWrapper<O>, String> object2keyMap_ = new ConcurrentHashMap<>();
@@ -51,6 +52,7 @@ public class ConcurrentManagedObjManager<O extends Managed> extends Synchronized
         protected void onObjectDestroying(O object) throws Exception {
             object2keyMap_.remove(new IdentityWrapper<>(object));
         }
+
     }
 
     /**
@@ -59,12 +61,12 @@ public class ConcurrentManagedObjManager<O extends Managed> extends Synchronized
      * @param factory factory of managed objects.
      * @return new instance of managed object.
      */
-    public O create(ManagedFactory<String, O, ConcurrentManagedObjManager<O>> factory) {
+    public O create(LifeCycleFactory<String, O, ConcurrentLifeCycleManager<O>> factory) {
         final String key = factory.buildKey(sequence_.incrementAndGet());
         return manager_.computeIfAbsent(key, () -> new ObjectFactory<O>() {
             @Override
             public O createObject() throws Exception {
-                return factory.createObject(key, ConcurrentManagedObjManager.this);
+                return factory.createObject(key, ConcurrentLifeCycleManager.this);
             }
 
             @Override

@@ -134,10 +134,10 @@ public class MultiThreadObjectManagerTest {
     private class TaskValues extends Task {
         @Override
         protected void doWork() throws Exception {
-            for (SimpleItem item : manager_.values()) {
+            manager_.forEach((k,v) -> {
                 getSuccessCounter().incrementAndGet();
-                Assertions.assertNotNull(item);
-            }
+                Assertions.assertNotNull(v);
+            });
         }
     }
 
@@ -152,7 +152,7 @@ public class MultiThreadObjectManagerTest {
         }
     }
 
-    private static class SimpleItemManager extends ConcurrentManagerImpl<String, SimpleItem> {
+    private static class SimpleItemManager extends ConcurrentKeyedManager<String, SimpleItem> {
         private static final long serialVersionUID = -7096838600955764301L;
 
         @Override

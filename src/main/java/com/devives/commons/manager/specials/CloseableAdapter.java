@@ -17,12 +17,13 @@
 package com.devives.commons.manager.specials;
 
 import com.devives.commons.lifecycle.Closeable;
-import com.devives.commons.lifecycle.LifeCycle;
+import com.devives.commons.manager.ObjectAdapter;
 
 /**
+ * Life cycle adapter for {@link Closeable} object.
  *
+ * @param <I> type of closeable object.
  */
-public interface ManagedObj extends LifeCycle, Closeable {
-
+public class CloseableAdapter<I extends Closeable> implements ObjectAdapter<I> {
 
 }

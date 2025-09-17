@@ -16,12 +16,24 @@
  */
 package com.devives.commons.manager.specials;
 
-import com.devives.commons.manager.LifeCycleAdapter;
+import com.devives.commons.lifecycle.LifeCycle;
 
-public interface ManagedObjFactory<K, O extends ManagedObj, M> extends LifeCycleAdapter<O> {
+/**
+ * Интерфейс контейнера элементов с жизненным циклом.
+ */
+public interface LifeCycleContainer extends LifeCycle {
 
-    K buildKey(long sequence);
+    /**
+     * Добавляет элемент в контейнер и, если контейнер запущен, запускает элемент.
+     *
+     * @param lifeCycle элемент.
+     */
+    void add(LifeCycle lifeCycle);
 
-    O createObject(K key, M manager) throws Exception;
-
+    /**
+     * Останавливает элемент, если контейнер запущен, и удаляет элемент из контейнера.
+     *
+     * @param lifeCycle элемент.
+     */
+    void remove(LifeCycle lifeCycle);
 }

@@ -25,14 +25,14 @@ public class ObjectManagerLifeCycleTest {
     @Test
     public void lifeCycle_onManagerClose_allRequiredMethodsCalled() throws Exception {
         final TestCloseableItem item;
-        final Manager<String, TestCloseableItem> manager = new ConcurrentManagerImpl<>();
+        final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
         try {
             item = manager.computeIfAbsent("item1", () -> createFactory(manager));
             Mockito.verify(item, Mockito.atMostOnce()).start();
             Mockito.verify(item, Mockito.atLeast(0)).stop();
             Mockito.verify(item, Mockito.atLeast(0)).close();
         } finally {
-            manager.close();
+            manager.clear();
         }
         Mockito.verify(item, Mockito.atMostOnce()).stop();
         Mockito.verify(item, Mockito.atMostOnce()).close();
@@ -41,7 +41,7 @@ public class ObjectManagerLifeCycleTest {
     @Test
     public void lifeCycle_onItemRemove_allRequiredMethodsCalled() throws Exception {
         final TestCloseableItem item;
-        final Manager<String, TestCloseableItem> manager = new ConcurrentManagerImpl<>();
+        final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
         try {
             item = manager.computeIfAbsent("item1", () -> createFactory(manager));
             Mockito.verify(item, Mockito.atMostOnce()).start();
@@ -49,14 +49,14 @@ public class ObjectManagerLifeCycleTest {
             Mockito.verify(item, Mockito.atMostOnce()).stop();
             Mockito.verify(item, Mockito.atMostOnce()).close();
         } finally {
-            manager.close();
+            manager.clear();
         }
     }
 
     @Test
     public void recurrentItemAccess_onLifeCycleEvents_itemIsAvailableInManager() throws Exception {
         final String key_item1 = "item1";
-        final Manager<String, TestCloseableItem> manager = new ConcurrentManagerImpl<>();
+        final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
         try {
             manager.computeIfAbsent(key_item1, () -> new ObjectFactory<TestCloseableItem>() {
                 @Override
@@ -82,11 +82,11 @@ public class ObjectManagerLifeCycleTest {
             });
             manager.removeAll();
         } finally {
-            manager.close();
+            manager.clear();
         }
     }
 
-    @Test
+
     private ObjectFactory<TestCloseableItem> createFactory(Manager<String, TestCloseableItem> manager) {
         return new ObjectFactory<TestCloseableItem>() {
 

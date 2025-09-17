@@ -171,7 +171,7 @@ public class ConcurrentManagedObjManagerTest {
     /**
      *
      */
-    private static abstract class SessionFactoryAbst implements ManagedObjFactory<String, AbstractSession, ConcurrentManagedObjManager<AbstractSession>> {
+    private static abstract class SessionFactoryAbst implements ManagedFactory<String, AbstractSession, ConcurrentManagedObjManager<AbstractSession>> {
 
         protected final String keyPrefix_;
         protected final ServerContext serverContext_;
@@ -280,7 +280,7 @@ public class ConcurrentManagedObjManagerTest {
     /**
      *
      */
-    private static abstract class AbstractSession extends SynchronizedManagedObjAbst<AbstractSession> implements Session {
+    private static abstract class AbstractSession extends SynchronizedManagedAbst<AbstractSession> implements Session {
 
         private final String id_;
         private final String secret_ = UUID.randomUUID().toString();

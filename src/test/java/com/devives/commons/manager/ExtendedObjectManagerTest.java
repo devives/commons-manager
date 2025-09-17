@@ -16,6 +16,7 @@
  */
 package com.devives.commons.manager;
 
+import com.devives.commons.manager.specials.AutoCloseableFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -44,14 +45,14 @@ public class ExtendedObjectManagerTest {
             }
         };
 
-        Manager<String, TestCloseableItem> manager = new ConcurrentManagerImpl<>();
+        Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
         try {
             TestCloseableItem item1 = manager.computeIfAbsent("item1", () -> testItemFactory);
             TestCloseableItem item2 = manager.computeIfAbsent("item2", () -> extTestItemFactory);
             Assertions.assertNotNull(item1);
             Assertions.assertTrue(item2 instanceof ExtTestCloseableItem);
         } finally {
-            manager.close();
+            manager.clear();
         }
     }
 
