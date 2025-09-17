@@ -126,16 +126,6 @@ public class ConcurrentManagedObjManager<O extends ManagedObj> extends Synchroni
     }
 
     /**
-     * Returns a {@link Collection} view of the values contained in this manager.
-     *
-     * @return a collection view of the values contained in this manager.
-     * @see ConcurrentHashMap#values()
-     */
-    public List<O> values() {
-        return manager_.values();
-    }
-
-    /**
      * Returns a value indicating the absence of objects.
      *
      * @return {@code true}, if managed is empty, else {@code false}.

@@ -24,7 +24,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Thread-safe implementation of {@link Manager}.
@@ -46,13 +45,6 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
     @Override
     public Set<K> keySet() {
         return entryMap_.keySet();
-    }
-
-    public List<O> values() {
-        return entryMap_.values().stream()
-                .map(Entry::getObject)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
     }
 
     @Override
@@ -116,6 +108,12 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
     public List<O> removeAll() {
         validateOpened();
         return doRemoveAll();
+    }
+
+    @Override
+    public void clear() {
+        validateOpened();
+        doClear();
     }
 
     @Override
@@ -389,17 +387,30 @@ public class ConcurrentManagerImpl<K, O> extends SynchronizedCloseableAbst imple
         final List<O> list = new ArrayList<>();
         entryMap_.keySet().forEach(key -> {
             try {
-                // Write lock is setting in doRemove().
-                O item = doRemove((K) key);
+                // The write lock will set in doRemove().
+                O item = doRemove(key);
                 if (item != null) {
                     list.add(item);
                 }
             } catch (Throwable e) {
-                exceptionList.add(e);
+                exceptionList.add(createManagerException("Error while removing key = '" + key + "'", e));
             }
         });
         ExceptionUtils.throwCollected(exceptionList);
         return list;
+    }
+
+    protected final void doClear() {
+        final List<Throwable> exceptionList = new ArrayList<>();
+        entryMap_.keySet().forEach(key -> {
+            try {
+                // The write lock will set in doRemove().
+                doRemove(key);
+            } catch (Throwable e) {
+                exceptionList.add(createManagerException("Error while removing key = '" + key + "'", e));
+            }
+        });
+        ExceptionUtils.throwCollected(exceptionList);
     }
 
     protected final EntryLock acquireEntryLock(final K k) {

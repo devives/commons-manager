@@ -91,6 +91,11 @@ public interface Manager<K, O> extends Closeable {
     List<O> removeAll();
 
     /**
+     * Remove all instances from manager.
+     */
+    void clear();
+
+    /**
      * Check presence of {@code key} in the manager.
      *
      * @param key key
@@ -108,14 +113,6 @@ public interface Manager<K, O> extends Closeable {
     Set<K> keySet();
 
     /**
-     * Returns a {@link Collection} view of the values contained in this manager.
-     *
-     * @return a collection view of the values contained in this manager.
-     * @see ConcurrentHashMap#values()
-     */
-    List<O> values();
-
-    /**
      * Returns <tt>true</tt> if this manages contains no objects.
      *
      * @return {@code true} if manager is empty, else {@code false}.
@@ -129,5 +126,20 @@ public interface Manager<K, O> extends Closeable {
      * @return count of object
      */
     long size();
+
+    /**
+     * Call an {@code action} for each key-value pair.
+     *
+     * @param action action
+     */
+    default void forEach(BiConsumer<? super K, ? super O> action) {
+        Objects.requireNonNull(action);
+        keySet().forEach((k) -> {
+            O v = getIfPresent(k);
+            if (v != null) {
+                action.accept(k, v);
+            }
+        });
+    }
 
 }
