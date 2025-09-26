@@ -41,7 +41,7 @@ public class UsageCountingManager<K, O> implements Serializable {
     private final InternalManager<K, O> internalManager_;
 
     public UsageCountingManager() {
-        this(new InternalManager<>(Publishers
+        this(new InternalManager<K, O>(Publishers
                 .<EventListener>builder()
                 .listeners(b -> b.setSynchronized())
                 .build()));
@@ -202,10 +202,10 @@ public class UsageCountingManager<K, O> implements Serializable {
                 } finally {
                     entryLock.readLock().unlock();
                 }
-                if (usages == 0 && removeUnusedObjects_) {
+                if (usages == 0 && isRemoveUnusedObjects()) {
                     entryLock.writeLock().lock();
                     try {
-                        if (entry.getUsages() == 0) {
+                        if (canRemoveUnused(entry)) {
                             doRemoveEntry(key, entry);
                         }
                     } finally {
@@ -219,19 +219,29 @@ public class UsageCountingManager<K, O> implements Serializable {
             }
         }
 
+        /**
+         * Выполняет проверку условия, при котором производится удаление не используемого элемента.
+         *
+         * @param entry запись элемента.
+         * @return true, если необходимо удалить, иначе false.
+         */
+        protected boolean canRemoveUnused(CountingEntry<O> entry) {
+            return entry.getUsages() == 0;
+        }
+
         protected static class CountingEntry<I> extends Entry<I> {
             private static final long serialVersionUID = 1626761723478454362L;
             private final AtomicLong usageCounter = new AtomicLong();
 
-            long getUsages() {
+            public long getUsages() {
                 return usageCounter.get();
             }
 
-            long incUsages() {
+            public long incUsages() {
                 return usageCounter.incrementAndGet();
             }
 
-            long decUsages() {
+            public long decUsages() {
                 // Счетчик не может уйти в минус. Если ушел - где-то проглядели
                 return usageCounter.accumulateAndGet(-1, (x, dx) -> {
                     if (x == 0) {
