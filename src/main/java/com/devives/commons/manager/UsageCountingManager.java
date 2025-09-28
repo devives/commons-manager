@@ -26,7 +26,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -387,17 +387,17 @@ public class UsageCountingManager<K, O> implements Serializable {
 
         protected static class CountingEntry<I> extends Entry<I> {
             private static final long serialVersionUID = 1626761723478454362L;
-            private final AtomicLong usageCounter = new AtomicLong();
+            private final AtomicInteger usageCounter = new AtomicInteger();
 
-            public long getUsages() {
+            public int getUsages() {
                 return usageCounter.get();
             }
 
-            public long incUsages() {
+            public int incUsages() {
                 return usageCounter.incrementAndGet();
             }
 
-            public long decUsages() {
+            public int decUsages() {
                 // Счетчик не может уйти в минус. Если ушел - где-то проглядели
                 return usageCounter.accumulateAndGet(-1, (x, dx) -> {
                     if (x == 0) {

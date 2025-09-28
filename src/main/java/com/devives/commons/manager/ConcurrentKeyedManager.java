@@ -663,23 +663,23 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
          * register(K) increments this counter and deRegister(K) decrements it.
          * Invariant: empty entry will not be dropped unless internalUsageCount is 0.
          */
-        private long usageCount_ = 0;
+        private int usageCount_ = 0;
 
         protected EntryLock(Object key) {
             super(true);
         }
 
-        public long getUsageCount() {
+        public int getUsageCount() {
             return usageCount_;
         }
 
         @Override
-        public long incUsageCount() {
+        public int incUsageCount() {
             return ++usageCount_;
         }
 
         @Override
-        public long decUsageCount() {
+        public int decUsageCount() {
             return --usageCount_;
         }
     }
