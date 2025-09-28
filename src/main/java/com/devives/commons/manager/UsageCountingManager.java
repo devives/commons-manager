@@ -229,7 +229,7 @@ public class UsageCountingManager<K, O> implements Serializable {
      *
      * @return количество объектов.
      */
-    public long size() {
+    public int size() {
         return internalManager_.size();
     }
 

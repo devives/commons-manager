@@ -228,7 +228,7 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
     }
 
     @Override
-    public long size() {
+    public int size() {
         return entryMap_.size();
     }
 

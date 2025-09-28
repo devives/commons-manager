@@ -219,7 +219,7 @@ public interface Manager<K, O> {
      *
      * @return count of object
      */
-    long size();
+    int size();
 
     /**
      * Call an {@code action} for each key-value pair.
