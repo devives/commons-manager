@@ -38,12 +38,12 @@ import java.util.function.Function;
  */
 public class UsageCountingManager<K, O> implements Serializable {
 
-    private static final long serialVersionUID = 8389806804677309189L;
+    private static final long serialVersionUID = 8389806804677309190L;
     private final InternalManager<K, O> internalManager_;
 
     public UsageCountingManager() {
         this(new InternalManager<K, O>(Publishers
-                .<EventListener>builder()
+                .<Listener>builder()
                 .listeners(b -> b.setSynchronized())
                 .build()));
     }
@@ -52,26 +52,70 @@ public class UsageCountingManager<K, O> implements Serializable {
         internalManager_ = Objects.requireNonNull(internalManager, "internalManager");
     }
 
+    /**
+     * Возвращает объект соответствующий указанному ключу. Перед возвращением объекта увеличивает счётчик использований объекта.
+     *
+     * @param key ключ объекта
+     * @return объект соответсвующий ключу
+     * @throws ManagerException Если объект с указанным ключом отсутствует в менеджере.
+     */
     public O acquire(K key) throws ManagerException {
         return internalManager_.get(key);
     }
 
+    /**
+     * Возвращает существующий или новый объект, соответствующий указанному ключу.
+     *
+     * @param key     ключ объекта.
+     * @param factory фабрика объекта.
+     * @return объект соответсвующий ключу.
+     */
     public O acquire(K key, Function<K, O> factory) {
         return internalManager_.computeIfAbsent(key, factory);
     }
 
+    /**
+     * Возвращает существующий или новый объект, соответствующий указанному ключу.
+     *
+     * @param key     ключ объекта.
+     * @param factory фабрика объекта.
+     * @return объект соответсвующий ключу.
+     */
     public O acquire(K key, ObjectFactory<O> factory) {
         return internalManager_.computeIfAbsent(key, factory);
     }
 
+    /**
+     * Возвращает существующий или новый объект, соответствующий указанному ключу.
+     *
+     * @param key     ключ объекта.
+     * @param factory фабрика объекта.
+     * @return объект соответсвующий ключу.
+     */
     public O acquire(K key, ManagedFactory<O> factory) {
         return internalManager_.computeIfAbsent(key, factory);
     }
 
+    /**
+     * Возвращает существующий или новый объект, соответствующий указанному ключу.
+     *
+     * @param key     ключ объекта.
+     * @param factory фабрика объекта.
+     * @param adapter адаптер жизненного цикла объекта к жизненному циклу управляемых объектов менеджера.
+     * @return объект соответсвующий ключу.
+     */
     public O acquire(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) {
         return internalManager_.computeIfAbsent(key, factory, adapter);
     }
 
+    /**
+     * Возвращает существующий или новый объект, соответствующий указанному ключу.
+     *
+     * @param key     ключ объекта.
+     * @param factory фабрика объекта.
+     * @param adapter адаптер жизненного цикла объекта к жизненному циклу управляемых объектов менеджера.
+     * @return объект соответсвующий ключу.
+     */
     public O acquire(K key, ManagedFactory<O> factory, ManagedAdapter<O> adapter) {
         return internalManager_.computeIfAbsent(key, factory, adapter);
     }
@@ -160,48 +204,92 @@ public class UsageCountingManager<K, O> implements Serializable {
         internalManager_.clear();
     }
 
+    /**
+     * Проверяет, является ли менеджер пустым.
+     *
+     * @return {@code true}, если менеджер не содержит объектов, иначе {@code false}.
+     */
     public boolean isEmpty() {
         return internalManager_.isEmpty();
     }
 
+    /**
+     * Возвращает количество объектов, содержащихся в менеджере.
+     *
+     * @return количество объектов.
+     */
     public long size() {
         return internalManager_.size();
     }
 
+    /**
+     * Флаг указывает, что менеджер удаляет объект при обнулении числа его использований.
+     *
+     * @return {@code true}, если объект удаляется, иначе {@code false}
+     */
     public boolean isRemoveUnusedObjects() {
         return internalManager_.isRemoveUnusedObjects();
     }
 
+    /**
+     * Устанавливает значение свойства {@link #isRemoveUnusedObjects()}.
+     *
+     * @param value новое значение.
+     */
     public void setRemoveUnusedObjects(boolean value) {
         internalManager_.setRemoveUnusedObjects(value);
     }
 
-    public void addListener(EventListener listener) {
+    /**
+     * Добавляет слушателя в коллекцию слушателей событий менеджера.
+     *
+     * @param listener слушатель.
+     */
+    public void addListener(Listener listener) {
         internalManager_.addListener(listener);
     }
 
-    public void removeListener(EventListener listener) {
+    /**
+     * Удаляет слушателя из коллекции слушателей событий менеджера.
+     *
+     * @param listener слушатель.
+     */
+    public void removeListener(Listener listener) {
         internalManager_.removeListener(listener);
     }
 
+    /**
+     * Интерфейс слушателя событий менеджера
+     *
+     * @param <O> тип объектов менеджера.
+     */
+    public interface Listener<O> extends java.util.EventListener {
 
-    public interface EventListener<O> {
-
+        /**
+         * Вызывается после добавления объекта в менеджер и запуска объекта.
+         *
+         * @param object объект
+         */
         void afterAddItem(O object);
 
+        /**
+         * Вызывается перед остановкой объекта и удаления объекта из менеджера.
+         *
+         * @param object
+         */
         void beforeRemoveItem(O object);
     }
 
     protected static class InternalManager<K, O> extends ConcurrentKeyedManager<K, O> {
         private static final long serialVersionUID = 242380967546124799L;
         private volatile boolean removeUnusedObjects_ = true;
-        private final Publisher<EventListener> publisher_;
+        private final Publisher<Listener> publisher_;
 
-        public InternalManager(Publisher<EventListener> publisher) {
+        public InternalManager(Publisher<Listener> publisher) {
             publisher_ = Objects.requireNonNull(publisher, "publisher");
         }
 
-        public InternalManager(Publisher<EventListener> publisher, ManagedAdapter<O> defaultAdapter) {
+        public InternalManager(Publisher<Listener> publisher, ManagedAdapter<O> defaultAdapter) {
             super(defaultAdapter);
             publisher_ = Objects.requireNonNull(publisher, "publisher");
         }
@@ -214,11 +302,11 @@ public class UsageCountingManager<K, O> implements Serializable {
             removeUnusedObjects_ = removeUnusedObjects;
         }
 
-        public void addListener(EventListener listener) {
+        public void addListener(Listener listener) {
             publisher_.getListeners().add(listener);
         }
 
-        public void removeListener(EventListener listener) {
+        public void removeListener(Listener listener) {
             publisher_.getListeners().remove(listener);
         }
 
@@ -237,11 +325,26 @@ public class UsageCountingManager<K, O> implements Serializable {
             publisher_.publish(listener -> listener.beforeRemoveItem(entry.getObject()));
         }
 
+        /**
+         * Метод увеличивает счётчик использований объекта.
+         * <p>
+         * Метод выполняется внутри блока с установленной блокировкой на чтение.
+         *
+         * @param entry the record
+         */
         @Override
         protected void onEntryGot(Entry<O> entry) {
             ((CountingEntry<O>) entry).incUsages();
         }
 
+        /**
+         * Уменьшает число использований.
+         * <p>
+         * Если установлено свойство {@link #isRemoveUnusedObjects}, при уменьшении счётчика до "0", удаляет объект из
+         * менеджера.
+         *
+         * @param key ключ
+         */
         public final void release(K key) {
             final EntryLock entryLock = acquireEntryLock(key);
             try {
