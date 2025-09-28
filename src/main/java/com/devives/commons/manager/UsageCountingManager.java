@@ -48,6 +48,17 @@ public class UsageCountingManager<K, O> implements Serializable {
                 .build()));
     }
 
+    public UsageCountingManager(ManagedAdapter<O> defaultAdapter) {
+        this(new InternalManager<K, O>(Publishers
+                .<Listener>builder()
+                .listeners(b -> b.setSynchronized())
+                .build(), defaultAdapter));
+    }
+
+    public UsageCountingManager(Publisher<Listener> publisher, ManagedAdapter<O> defaultAdapter) {
+        this(new InternalManager<K, O>(publisher, defaultAdapter));
+    }
+
     protected UsageCountingManager(InternalManager<K, O> internalManager) {
         internalManager_ = Objects.requireNonNull(internalManager, "internalManager");
     }
@@ -268,14 +279,14 @@ public class UsageCountingManager<K, O> implements Serializable {
         /**
          * Вызывается после добавления объекта в менеджер и запуска объекта.
          *
-         * @param object объект
+         * @param object добавленный объект
          */
         void afterAddItem(O object);
 
         /**
          * Вызывается перед остановкой объекта и удаления объекта из менеджера.
          *
-         * @param object
+         * @param object удаляемый объект
          */
         void beforeRemoveItem(O object);
     }
