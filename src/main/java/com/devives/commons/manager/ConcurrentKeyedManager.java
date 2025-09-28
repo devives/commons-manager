@@ -24,7 +24,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Thread-safe concurrent implementation of {@link Manager}.
@@ -78,33 +77,75 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
     }
 
     @Override
-    public O computeIfAbsent(K key, Supplier<ObjectFactory<O>> factorySupplier) {
+    public O computeIfAbsent(K key, Function<K, O> factory) {
+        return computeIfAbsent(key, factory, getDefaultAdapter());
+    }
+
+    @Override
+    public O computeIfAbsent(K key, ObjectFactory<O> factory) {
+        return computeIfAbsent(key, factory, getDefaultAdapter());
+    }
+
+    @Override
+    public O computeIfAbsent(K key, ManagedFactory<O> factory) {
+        return computeIfAbsent(key, factory::createObject, factory);
+    }
+
+    @Override
+    public O computeIfAbsent(K key, Function<K, O> factory, ManagedAdapter<O> adapter) {
+        return computeIfAbsent(key, new KeyedObjectFactory<>(key, factory), adapter);
+    }
+
+    @Override
+    public O computeIfAbsent(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) {
         try {
-            Objects.requireNonNull(key);
-            Objects.requireNonNull(factorySupplier);
-            return doComputeIfAbsent(key, (ignore) -> factorySupplier.get());
+            Objects.requireNonNull(key, "The key value is required.");
+            Objects.requireNonNull(factory, "The factory value is required.");
+            Objects.requireNonNull(adapter, "The adapter value is required.");
+            return doComputeIfAbsent(key, factory, adapter);
         } catch (Exception e) {
             throw ExceptionUtils.asUnchecked(e);
         }
     }
 
-    @Override
-    public O computeIfAbsent(K key, Function<K, ObjectFactory<O>> keyedFactorySupplier) {
-        try {
-            Objects.requireNonNull(key);
-            Objects.requireNonNull(keyedFactorySupplier);
-            return doComputeIfAbsent(key, keyedFactorySupplier);
-        } catch (Exception e) {
-            throw ExceptionUtils.asUnchecked(e);
+    private static class KeyedObjectFactory<K, O> implements ObjectFactory<O> {
+
+        private final K key;
+        private final Function<K, O> factory;
+
+        public KeyedObjectFactory(K key, Function<K, O> factory) {
+            this.key = Objects.requireNonNull(key, "The key value is required.");
+            this.factory = Objects.requireNonNull(factory, "The factory value is required.");
         }
+
+        @Override
+        public O createObject() throws Exception {
+            return factory.apply(key);
+        }
+    }
+
+    @Override
+    public O put(K key, Function<K, O> factory) {
+        return put(key, new KeyedObjectFactory<>(key, factory), getDefaultAdapter());
     }
 
     @Override
     public O put(K key, ObjectFactory<O> factory) {
+        return put(key, factory::createObject, getDefaultAdapter());
+    }
+
+    @Override
+    public O put(K key, ManagedFactory<O> factory) {
+        return put(key, factory::createObject, factory);
+    }
+
+    @Override
+    public O put(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) {
         try {
-            Objects.requireNonNull(key);
-            Objects.requireNonNull(factory);
-            return doReplace(key, factory);
+            Objects.requireNonNull(key, "The key value is required.");
+            Objects.requireNonNull(factory, "The factory value is required.");
+            Objects.requireNonNull(adapter, "The adapter value is required.");
+            return doReplace(key, factory, adapter);
         } catch (Exception e) {
             throw ExceptionUtils.asUnchecked(e);
         }
@@ -186,7 +227,7 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
         return result;
     }
 
-    protected final O doComputeIfAbsent(K key, Function<K, ObjectFactory<O>> factorySupplier) throws Exception {
+    protected final O doComputeIfAbsent(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) throws Exception {
         O result = null;
         final EntryLock entryLock = acquireEntryLock(key);
         try {
@@ -201,8 +242,6 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
                         entry = Optional.ofNullable(internalGetEntryIfPresent(key)).orElseGet(() -> newEntry(key));
                         objectAndAdapter = entry.getObjectAndAdapter();
                         if (objectAndAdapter == null) {
-                            final ObjectFactory<O> factory = factorySupplier.apply(key);
-                            final ManagedAdapter<O> adapter = (factory instanceof ManagedAdapter) ? (ManagedAdapter<O>) factory : getDefaultAdapter();
                             result = doObjectCreate(factory, key);
                             try {
                                 objectAndAdapter = entry.initObjectAndAdapter(result, adapter);
@@ -280,7 +319,7 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
         return entryMap_.remove(k);
     }
 
-    protected final O doReplace(K key, ObjectFactory<O> factory) throws Exception {
+    protected final O doReplace(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) throws Exception {
         O result = null;
         final EntryLock entryLock = acquireEntryLock(key);
         try {
@@ -308,7 +347,6 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
                         result = objectAndAdapter.object;
                     }
                 }
-                final ManagedAdapter<O> adapter = (factory instanceof ManagedAdapter) ? (ManagedAdapter<O>) factory : getDefaultAdapter();
                 entry = (entry != null) ? entry : newEntry(key);
                 final O newObject = doObjectCreate(factory, key);
                 try {

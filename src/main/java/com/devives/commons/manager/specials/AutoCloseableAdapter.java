@@ -25,4 +25,13 @@ import com.devives.commons.manager.ManagedAdapter;
  */
 public class AutoCloseableAdapter<I extends AutoCloseable> implements ManagedAdapter<I> {
 
+    @Override
+    public void startObject(I object) throws Exception {
+
+    }
+
+    @Override
+    public void stopObject(I object) throws Exception {
+
+    }
 }

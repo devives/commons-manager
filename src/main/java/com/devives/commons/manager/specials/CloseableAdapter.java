@@ -26,4 +26,13 @@ import com.devives.commons.manager.ManagedAdapter;
  */
 public class CloseableAdapter<I extends Closeable> implements ManagedAdapter<I> {
 
+    @Override
+    public void startObject(I object) throws Exception {
+
+    }
+
+    @Override
+    public void stopObject(I object) throws Exception {
+
+    }
 }

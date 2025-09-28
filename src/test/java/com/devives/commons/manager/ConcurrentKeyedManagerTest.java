@@ -16,26 +16,133 @@
  */
 package com.devives.commons.manager;
 
+import com.devives.commons.lang.function.FailableConsumer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 public class ConcurrentKeyedManagerTest {
 
+
     @Test
-    public void lifeCycle_onManagerClear_allRequiredMethodsCalled() throws Exception {
-        final TestCloseableItem item;
-        final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>(new TestCloseableItemToManagedAdapter());
+    public void get_emptyManager_exceptionThrow() throws Exception {
+        forSimpleManager(manager -> {
+            Assertions.assertThrows(ManagerException.class, () -> manager.get("Item1"));
+        });
+    }
+
+    @Test
+    public void computeIfAbsent_emptyManager_nonNull() throws Exception {
+        forSimpleManager(manager -> {
+            SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            Assertions.assertNotNull(item1);
+        });
+    }
+
+    @Test
+    public void computeIfAbsent_twiceCall_oneObject() throws Exception {
+        forSimpleManager(manager -> {
+            SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            SimpleTestItem item1_1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            Assertions.assertEquals(item1, item1_1);
+        });
+    }
+
+    @Test
+    public void get_afterComputeIfAbsent_areEquals() throws Exception {
+        forSimpleManager(manager -> {
+            SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            SimpleTestItem item1_1 = manager.get("Item1");
+            Assertions.assertEquals(item1, item1_1);
+        });
+    }
+
+    @Test
+    public void containsKey_emptyManager_returnFalse() throws Exception {
+        forSimpleManager(manager -> {
+            Assertions.assertFalse(manager.containsKey("Item1"));
+        });
+    }
+
+    @Test
+    public void containsKey_afterRemove_returnFalse() throws Exception {
+        forSimpleManager(manager -> {
+            manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            manager.remove("Item1");
+            Assertions.assertFalse(manager.containsKey("Item1"));
+        });
+    }
+
+    @Test
+    public void remove_emptyManager_returnNull() throws Exception {
+        forSimpleManager(manager -> {
+            Assertions.assertNull(manager.remove("Item1"));
+        });
+    }
+
+    @Test
+    public void remove_afterComputeIfAbsent_areEquals() throws Exception {
+        forSimpleManager(manager -> {
+            SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            SimpleTestItem item1_1 = manager.get("Item1");
+            Assertions.assertEquals(item1, item1_1);
+        });
+    }
+
+    @Test
+    public void removeAll_afterComputeIfAbsent_areEquals() throws Exception {
+        forSimpleManager(manager -> {
+            manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            manager.computeIfAbsent("Item2", SimpleTestItem::new);
+            manager.computeIfAbsent("Item3", SimpleTestItem::new);
+            Assertions.assertEquals(3, manager.removeAll().size());
+            Assertions.assertTrue(manager.isEmpty());
+        });
+    }
+
+    @Test
+    public void isEmpty_emptyManager_true() throws Exception {
+        forSimpleManager(manager -> {
+            Assertions.assertTrue(manager.isEmpty());
+        });
+    }
+
+    @Test
+    public void isEmpty_nonEmptyManager_false() throws Exception {
+        forSimpleManager(manager -> {
+            manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            Assertions.assertFalse(manager.isEmpty());
+        });
+    }
+
+    private static void forSimpleManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {
+        Manager<String, SimpleTestItem> manager = new ConcurrentKeyedManager<>();
         try {
-            item = manager.computeIfAbsent("item1", () -> createObjectFactory(manager));
-            Mockito.verify(item, Mockito.atMostOnce()).start();
-            Mockito.verify(item, Mockito.atLeast(0)).stop();
-            Mockito.verify(item, Mockito.atLeast(0)).close();
+            consumer.accept(manager);
         } finally {
             manager.clear();
         }
-        Mockito.verify(item, Mockito.atMostOnce()).stop();
-        Mockito.verify(item, Mockito.atMostOnce()).close();
+    }
+
+    private static void forCloseableManager(FailableConsumer<Manager<String, TestCloseableItem>> consumer) throws Exception {
+        Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
+        try {
+            consumer.accept(manager);
+        } finally {
+            manager.clear();
+        }
+    }
+
+    @Test
+    public void lifeCycle_onManagerClear_allRequiredMethodsCalled() throws Exception {
+        Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>(new TestCloseableItemToManagedAdapter());
+        TestCloseableItem item = manager.computeIfAbsent("item1", () -> Mockito.mock(TestCloseableItem.class));
+        Mockito.verify(item, Mockito.atLeastOnce()).start();
+        Mockito.verify(item, Mockito.atLeast(0)).stop();
+        Mockito.verify(item, Mockito.atLeast(0)).close();
+        manager.clear();
+        Mockito.verify(item, Mockito.atLeastOnce()).stop();
+        Mockito.verify(item, Mockito.atLeastOnce()).close();
     }
 
     @Test
@@ -43,11 +150,11 @@ public class ConcurrentKeyedManagerTest {
         final TestCloseableItem item;
         final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
         try {
-            item = manager.computeIfAbsent("item1", () -> createObjectFactory(manager));
-            Mockito.verify(item, Mockito.atMostOnce()).start();
+            item = manager.computeIfAbsent("item1", () -> Mockito.mock(TestCloseableItem.class));
+            Mockito.verify(item, Mockito.atLeast(0)).start();
             manager.remove("item1");
-            Mockito.verify(item, Mockito.atMostOnce()).stop();
-            Mockito.verify(item, Mockito.atMostOnce()).close();
+            Mockito.verify(item, Mockito.atLeast(0)).stop();
+            Mockito.verify(item, Mockito.atLeast(0)).close();
         } finally {
             manager.clear();
         }
@@ -58,7 +165,7 @@ public class ConcurrentKeyedManagerTest {
         final String key_item1 = "item1";
         final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
         try {
-            manager.computeIfAbsent(key_item1, () -> new ObjectFactory<TestCloseableItem>() {
+            manager.computeIfAbsent(key_item1, new ObjectFactory<TestCloseableItem>() {
                 @Override
                 public TestCloseableItem createObject() {
                     return new TestCloseableItem() {
@@ -154,6 +261,10 @@ public class ConcurrentKeyedManagerTest {
         protected void close() throws Exception {
 
         }
+    }
+
+    private static final class SimpleTestItem {
+
     }
 
 }

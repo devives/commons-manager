@@ -29,7 +29,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-public class MultiThreadObjectManagerTest {
+public class MultiThreadManagerTest {
 
     private final SimpleItemManager manager_ = new SimpleItemManager();
     private final ExecutorService executorService_ = Executors.newScheduledThreadPool(10);
@@ -93,9 +93,9 @@ public class MultiThreadObjectManagerTest {
     private class TaskCompute extends Task {
         @Override
         protected void doWork() {
-            SimpleItem simpleItem = manager_.computeIfAbsent("item1", () -> {
+            SimpleItem simpleItem = manager_.computeIfAbsent("item1", (ObjectFactory<SimpleItem>) () -> {
                 getSuccessCounter().incrementAndGet();
-                return SimpleItem::new;
+                return new SimpleItem();
             });
             Assertions.assertNotNull(simpleItem);
         }
@@ -134,9 +134,9 @@ public class MultiThreadObjectManagerTest {
     private class TaskValues extends Task {
         @Override
         protected void doWork() throws Exception {
-            manager_.forEach((k,v) -> {
-                getSuccessCounter().incrementAndGet();
+            manager_.values().forEach((v) -> {
                 Assertions.assertNotNull(v);
+                getSuccessCounter().incrementAndGet();
             });
         }
     }

@@ -63,7 +63,7 @@ public class ConcurrentLifeCycleManager<O extends LifeCycle> extends Synchronize
      */
     public O create(LifeCycleFactory<String, O, ConcurrentLifeCycleManager<O>> factory) {
         final String key = factory.buildKey(sequence_.incrementAndGet());
-        return manager_.computeIfAbsent(key, () -> new ManagedFactory<O>() {
+        return manager_.computeIfAbsent(key, new ManagedFactory<O>() {
             @Override
             public O createObject() throws Exception {
                 return factory.createObject(key, ConcurrentLifeCycleManager.this);

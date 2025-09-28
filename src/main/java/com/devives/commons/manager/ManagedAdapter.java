@@ -25,17 +25,13 @@ package com.devives.commons.manager;
  */
 public interface ManagedAdapter<O> {
 
-    default void startObject(O object) throws Exception {
-
-    }
+    void startObject(O object) throws Exception;
 
     default void failureObject(O object, Throwable throwable) {
 
     }
 
-    default void stopObject(O object) throws Exception {
-
-    }
+    void stopObject(O object) throws Exception;
 
     default void destroyObject(O object) throws Exception {
 

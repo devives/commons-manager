@@ -22,7 +22,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Object manager interface.
@@ -64,32 +63,97 @@ public interface Manager<K, O> {
      * and enters it into this manager.
      *
      * @param key     key
-     * @param factorySupplier the supplier to compute an objects factory.
+     * @param factory the supplier to compute an objects factory.
      * @return instance of {@code O}
      * @see ConcurrentHashMap#computeIfAbsent(Object, Function)
      */
-    O computeIfAbsent(K key, Supplier<ObjectFactory<O>> factorySupplier);
+    O computeIfAbsent(K key, Function<K, O> factory);
 
     /**
      * If the specified key is not already associated with a value,
      * attempts to compute its value using the given mapping function
      * and enters it into this manager.
      *
-     * @param key             key
-     * @param factorySupplier the supplier to compute an objects factory.
+     * @param key     key
+     * @param factory the supplier to compute an objects factory.
+     * @param adapter adapter of {@code <O>} lifecycle to the managed object lifecycle.
+     * @return instance of {@code O}
+     */
+    O computeIfAbsent(K key, Function<K, O> factory, ManagedAdapter<O> adapter);
+
+    /**
+     * If the specified key is not already associated with a value,
+     * attempts to compute its value using the given mapping function
+     * and enters it into this manager.
+     *
+     * @param key     key
+     * @param factory the supplier to compute an objects factory.
      * @return instance of {@code O}
      * @see ConcurrentHashMap#computeIfAbsent(Object, Function)
      */
-    O computeIfAbsent(K key, Function<K, ObjectFactory<O>> factorySupplier);
+    O computeIfAbsent(K key, ObjectFactory<O> factory);
+
+    /**
+     * If the specified key is not already associated with a value,
+     * attempts to compute its value using the given mapping function
+     * and enters it into this manager.
+     *
+     * @param key     key
+     * @param factory the supplier to compute an objects factory.
+     * @param adapter adapter of {@code <O>} lifecycle to the managed object lifecycle.
+     * @return instance of {@code O}
+     * @see ConcurrentHashMap#computeIfAbsent(Object, Function)
+     */
+    O computeIfAbsent(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter);
+
+    /**
+     * If the specified key is not already associated with a value,
+     * attempts to compute its value using the given mapping function
+     * and enters it into this manager.
+     *
+     * @param key            key
+     * @param managedFactory the supplier to compute an objects factory.
+     * @return instance of {@code O}
+     * @see ConcurrentHashMap#computeIfAbsent(Object, Function)
+     */
+    O computeIfAbsent(K key, ManagedFactory<O> managedFactory);
 
     /**
      * Put new instance of {@code O} in to manager.
      *
      * @param key     key
-     * @param factory object factory.
+     * @param factory the object factory.
+     * @return Previous instance of {@code O} if it's present.
+     */
+    O put(K key, Function<K, O> factory);
+
+    /**
+     * Put new instance of {@code O} in to manager.
+     *
+     * @param key     key
+     * @param factory the supplier to compute an objects factory.
      * @return Previous instance of {@code O} if it's present.
      */
     O put(K key, ObjectFactory<O> factory);
+
+    /**
+     * Put new instance of {@code O} in to manager.
+     *
+     * @param key     key
+     * @param factory the supplier to compute an objects factory.
+     * @param adapter adapter of {@code <O>} lifecycle to the managed object lifecycle.
+     * @return Previous instance of {@code O} if it's present.
+     */
+    O put(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter);
+
+    /**
+     * Put new instance of {@code O} in to manager.
+     *
+     * @param key            key
+     * @param managedFactory the supplier to compute an objects factory.
+     * @return Previous instance of {@code O} if it's present.
+     */
+    O put(K key, ManagedFactory<O> managedFactory);
 
     /**
      * Removes a key and its corresponding object from the manager.
@@ -122,9 +186,10 @@ public interface Manager<K, O> {
 
     /**
      * Returns a {@link Set} view of the keys contained in this manager.
+     * <p>
+     * The set is unmodifiable.
      *
      * @return a set view of the keys contained in this manager.
-     * @see ConcurrentHashMap#keySet()
      */
     Set<K> keySet();
 
@@ -132,7 +197,6 @@ public interface Manager<K, O> {
      * Returns <tt>true</tt> if this manages contains no objects.
      *
      * @return {@code true} if manager is empty, else {@code false}.
-     * @see ConcurrentHashMap#isEmpty()
      */
     boolean isEmpty();
 

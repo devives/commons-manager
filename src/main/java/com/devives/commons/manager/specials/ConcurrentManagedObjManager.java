@@ -61,7 +61,7 @@ public class ConcurrentManagedObjManager<O extends Managed> extends Synchronized
      */
     public O create(ManagedKeyedFactory<String, O, ConcurrentManagedObjManager<O>> factory) {
         final String key = factory.buildKey(sequence_.incrementAndGet());
-        return manager_.computeIfAbsent(key, () -> new ManagedFactory<O>() {
+        return manager_.computeIfAbsent(key, new ManagedFactory<O>() {
             @Override
             public O createObject() throws Exception {
                 return factory.createObject(key, ConcurrentManagedObjManager.this);

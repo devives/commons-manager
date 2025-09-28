@@ -21,6 +21,7 @@ package com.devives.commons.manager;
  *
  * @param <O> type of objects to create.
  */
+@FunctionalInterface
 public interface ObjectFactory<O> {
 
     /**

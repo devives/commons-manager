@@ -47,8 +47,8 @@ public class ExtendedObjectManagerTest {
 
         Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
         try {
-            TestCloseableItem item1 = manager.computeIfAbsent("item1", () -> testItemFactory);
-            TestCloseableItem item2 = manager.computeIfAbsent("item2", () -> extTestItemFactory);
+            TestCloseableItem item1 = manager.computeIfAbsent("item1", testItemFactory);
+            TestCloseableItem item2 = manager.computeIfAbsent("item2", extTestItemFactory);
             Assertions.assertNotNull(item1);
             Assertions.assertTrue(item2 instanceof ExtTestCloseableItem);
         } finally {

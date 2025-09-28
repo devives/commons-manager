@@ -24,13 +24,13 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-public class InheritedObjectManagerTest {
+public class TheDescendantManagerTest {
 
     @Test
     public void getOrCreate_subClass_expectedClasses() throws Exception {
         TestCloseableItemManager manager = new TestCloseableItemManager();
         try {
-            TestCloseableItem item1 = manager.computeIfAbsent("item1", () ->
+            TestCloseableItem item1 = manager.computeIfAbsent("item1", 
                     new AutoCloseableFactory<TestCloseableItem>() {
                         @Override
                         public TestCloseableItem createObject() {

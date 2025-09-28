@@ -22,12 +22,13 @@ import com.devives.commons.publisher.Publisher;
 import com.devives.commons.publisher.Publishers;
 
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Object manager with usage counting.
@@ -55,18 +56,33 @@ public class UsageCountingManager<K, O> implements Serializable {
         return internalManager_.get(key);
     }
 
-    public O acquire(K key, Supplier<ObjectFactory<O>> factorySupplier) {
-        return internalManager_.computeIfAbsent(key, factorySupplier);
+    public O acquire(K key, Function<K, O> factory) {
+        return internalManager_.computeIfAbsent(key, factory);
     }
 
-    public O acquire(K key, Function<K, ObjectFactory<O>> keyedFactorySupplier) {
-        return internalManager_.computeIfAbsent(key, keyedFactorySupplier);
+    public O acquire(K key, ObjectFactory<O> factory) {
+        return internalManager_.computeIfAbsent(key, factory);
+    }
+
+    public O acquire(K key, ManagedFactory<O> factory) {
+        return internalManager_.computeIfAbsent(key, factory);
+    }
+
+    public O acquire(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) {
+        return internalManager_.computeIfAbsent(key, factory, adapter);
+    }
+
+    public O acquire(K key, ManagedFactory<O> factory, ManagedAdapter<O> adapter) {
+        return internalManager_.computeIfAbsent(key, factory, adapter);
     }
 
     /**
      * Метод перебора всех объектов менеджера.
+     * <p>
+     * На время выполнения метода {@code visitor} увеличивается счётчик использований объекта. За счёт этого гарантируется,
+     * что объект не будет остановлен до завершения {@code visitor}.
      *
-     * @param visitor Визитёр
+     * @param visitor визитёр, вызываемый для каждого объекта в менеджере.
      */
     public void forEach(Consumer<O> visitor) {
         internalManager_.keySet().forEach((key) -> {
@@ -150,6 +166,11 @@ public class UsageCountingManager<K, O> implements Serializable {
         private final Publisher<EventListener> publisher_;
 
         public InternalManager(Publisher<EventListener> publisher) {
+            publisher_ = Objects.requireNonNull(publisher, "publisher");
+        }
+
+        public InternalManager(Publisher<EventListener> publisher, ManagedAdapter<O> defaultAdapter) {
+            super(defaultAdapter);
             publisher_ = Objects.requireNonNull(publisher, "publisher");
         }
 
