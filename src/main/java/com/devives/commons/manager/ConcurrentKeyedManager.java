@@ -33,10 +33,11 @@ import java.util.function.Function;
  * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
  */
 public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Serializable {
-    private static final long serialVersionUID = 2387557309207392162L;
+    private static final long serialVersionUID = 2387557309207392163L;
     private final Map<K, EntryLock> lockMap_ = new ConcurrentHashMap<>();
     private final Map<K, Entry<O>> entryMap_ = new ConcurrentHashMap<>();
     private final ManagedAdapter<O> defaultAdapter_;
+    private transient volatile Collection<O> values;
 
     public ConcurrentKeyedManager() {
         defaultAdapter_ = new NoopManagedAdapter();
@@ -53,8 +54,58 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
 
     @Override
     public Set<K> keySet() {
-        return entryMap_.keySet();
+        return Collections.unmodifiableSet(entryMap_.keySet());
     }
+
+    public Collection<O> values() {
+        Collection<O> vals = values;
+        if (vals == null) {
+            vals = new AbstractCollection<O>() {
+                public Iterator<O> iterator() {
+                    return new Iterator<O>() {
+                        private final Iterator<Entry<O>> i = entryMap_.values().iterator();
+                        private volatile O nextValue;
+
+                        public boolean hasNext() {
+                            for (; ; ) {
+                                boolean hasNext = i.hasNext();
+                                nextValue = hasNext ? i.next().getObject() : null;
+                                if (hasNext && nextValue != null) {
+                                    return true;
+                                } else if (nextValue == null) {
+                                    return false;
+                                }
+                            }
+                        }
+
+                        public O next() {
+                            return nextValue;
+                        }
+
+                    };
+                }
+
+                public int size() {
+                    return this.size();
+                }
+
+                public boolean isEmpty() {
+                    return this.isEmpty();
+                }
+
+                public void clear() {
+                    this.clear();
+                }
+
+                public boolean contains(Object v) {
+                    throw new UnsupportedOperationException("Contains is not supported by manager values iterator.");
+                }
+            };
+            values = vals;
+        }
+        return Collections.unmodifiableCollection(vals);
+    }
+
 
     @Override
     public O get(K key) throws ManagerException {

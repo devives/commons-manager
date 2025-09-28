@@ -16,6 +16,7 @@
  */
 package com.devives.commons.manager;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -192,6 +193,19 @@ public interface Manager<K, O> {
      * @return a set view of the keys contained in this manager.
      */
     Set<K> keySet();
+
+    /**
+     * Returns a {@link Collection} view of the values contained in this manager.
+     * The collection is backed by the manager, so changes to the manager are
+     * reflected in the collection, and vice-versa.  If the manager is
+     * modified while an iteration over the collection is in progress,
+     * the results of the iteration are undefined.
+     * <p>
+     * The collection is unmodifiable.
+     *
+     * @return a collection view of the values contained in this manager.
+     */
+    Collection<O> values();
 
     /**
      * Returns <tt>true</tt> if this manages contains no objects.
