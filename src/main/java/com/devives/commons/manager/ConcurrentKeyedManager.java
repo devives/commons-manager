@@ -462,6 +462,10 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
 
     /**
      * The method is called after a write lock is set.
+     * @param key   key
+     * @param entry object entry
+     * @return the removed object or {@code null}.
+     * @throws Exception when stopping of the object is failed.
      */
     protected final O doRemoveEntry(K key, Entry<O> entry) throws Exception {
         O result = null;
