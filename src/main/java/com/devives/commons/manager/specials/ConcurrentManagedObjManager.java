@@ -59,9 +59,9 @@ public class ConcurrentManagedObjManager<O extends Managed> extends Synchronized
      * @param factory factory of managed objects.
      * @return new instance of managed object.
      */
-    public O create(ManagedFactory<String, O, ConcurrentManagedObjManager<O>> factory) {
+    public O create(ManagedKeyedFactory<String, O, ConcurrentManagedObjManager<O>> factory) {
         final String key = factory.buildKey(sequence_.incrementAndGet());
-        return manager_.computeIfAbsent(key, () -> new ObjectFactory<O>() {
+        return manager_.computeIfAbsent(key, () -> new ManagedFactory<O>() {
             @Override
             public O createObject() throws Exception {
                 return factory.createObject(key, ConcurrentManagedObjManager.this);

@@ -21,7 +21,7 @@ package com.devives.commons.manager;
  *
  * @param <O> type of objects to create.
  */
-public interface ObjectFactory<O> extends ObjectAdapter<O> {
+public interface ObjectFactory<O> {
 
     /**
      * Creates a new instance of class <tt>&lt;O&gt;</tt>.

@@ -16,9 +16,9 @@
  */
 package com.devives.commons.manager.specials;
 
-import com.devives.commons.manager.ObjectAdapter;
+import com.devives.commons.manager.ManagedAdapter;
 
-public interface ManagedFactory<K, O extends Managed, M> extends ObjectAdapter<O> {
+public interface ManagedKeyedFactory<K, O extends Managed, M> extends ManagedAdapter<O> {
 
     K buildKey(long sequence);
 

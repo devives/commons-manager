@@ -23,7 +23,7 @@ package com.devives.commons.manager;
  *
  * @param <O> type of the object.
  */
-public interface ObjectAdapter<O> {
+public interface ManagedAdapter<O> {
 
     default void startObject(O object) throws Exception {
 

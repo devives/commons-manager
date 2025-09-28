@@ -171,7 +171,7 @@ public class ConcurrentManagedObjManagerTest {
     /**
      *
      */
-    private static abstract class SessionFactoryAbst implements ManagedFactory<String, AbstractSession, ConcurrentManagedObjManager<AbstractSession>> {
+    private static abstract class SessionFactoryAbst implements ManagedKeyedFactory<String, AbstractSession, ConcurrentManagedObjManager<AbstractSession>> {
 
         protected final String keyPrefix_;
         protected final ServerContext serverContext_;

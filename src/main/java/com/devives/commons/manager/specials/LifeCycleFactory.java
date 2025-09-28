@@ -17,9 +17,9 @@
 package com.devives.commons.manager.specials;
 
 import com.devives.commons.lifecycle.LifeCycle;
-import com.devives.commons.manager.ObjectAdapter;
+import com.devives.commons.manager.ManagedAdapter;
 
-public interface LifeCycleFactory<K, O extends LifeCycle, M> extends ObjectAdapter<O> {
+public interface LifeCycleFactory<K, O extends LifeCycle, M> extends ManagedAdapter<O> {
 
     K buildKey(long sequence);
 

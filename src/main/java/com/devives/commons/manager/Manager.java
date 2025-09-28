@@ -40,8 +40,8 @@ public interface Manager<K, O> {
      * Return instance of the class {@code O} corresponding to the key.
      * <p>
      * При получении ссылки на объект выполняется блокировка на чтение. Если в этот момент другой поток установил
-     * блокировку на запись для выполняет операции запуска {@link ObjectFactory#startObject(Object)} или
-     * остановки {@link ObjectFactory#stopObject(Object)} запрашиваемого объекта, метод будет ждать снятия блокировки
+     * блокировку на запись для выполняет операции запуска {@link ManagedAdapter#startObject(Object)} или
+     * остановки {@link ManagedAdapter#stopObject(Object)} запрашиваемого объекта, метод будет ждать снятия блокировки
      * на запись.
      *
      * @param key key
@@ -63,13 +63,23 @@ public interface Manager<K, O> {
      * attempts to compute its value using the given mapping function
      * and enters it into this manager.
      *
-     * @param key             key
+     * @param key     key
      * @param factorySupplier the supplier to compute an objects factory.
      * @return instance of {@code O}
      * @see ConcurrentHashMap#computeIfAbsent(Object, Function)
      */
     O computeIfAbsent(K key, Supplier<ObjectFactory<O>> factorySupplier);
 
+    /**
+     * If the specified key is not already associated with a value,
+     * attempts to compute its value using the given mapping function
+     * and enters it into this manager.
+     *
+     * @param key             key
+     * @param factorySupplier the supplier to compute an objects factory.
+     * @return instance of {@code O}
+     * @see ConcurrentHashMap#computeIfAbsent(Object, Function)
+     */
     O computeIfAbsent(K key, Function<K, ObjectFactory<O>> factorySupplier);
 
     /**

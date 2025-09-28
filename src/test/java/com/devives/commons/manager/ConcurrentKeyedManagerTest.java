@@ -20,14 +20,14 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-public class ObjectManagerLifeCycleTest {
+public class ConcurrentKeyedManagerTest {
 
     @Test
-    public void lifeCycle_onManagerClose_allRequiredMethodsCalled() throws Exception {
+    public void lifeCycle_onManagerClear_allRequiredMethodsCalled() throws Exception {
         final TestCloseableItem item;
-        final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
+        final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>(new TestCloseableItemToManagedAdapter());
         try {
-            item = manager.computeIfAbsent("item1", () -> createFactory(manager));
+            item = manager.computeIfAbsent("item1", () -> createObjectFactory(manager));
             Mockito.verify(item, Mockito.atMostOnce()).start();
             Mockito.verify(item, Mockito.atLeast(0)).stop();
             Mockito.verify(item, Mockito.atLeast(0)).close();
@@ -43,7 +43,7 @@ public class ObjectManagerLifeCycleTest {
         final TestCloseableItem item;
         final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
         try {
-            item = manager.computeIfAbsent("item1", () -> createFactory(manager));
+            item = manager.computeIfAbsent("item1", () -> createObjectFactory(manager));
             Mockito.verify(item, Mockito.atMostOnce()).start();
             manager.remove("item1");
             Mockito.verify(item, Mockito.atMostOnce()).stop();
@@ -87,8 +87,8 @@ public class ObjectManagerLifeCycleTest {
     }
 
 
-    private ObjectFactory<TestCloseableItem> createFactory(Manager<String, TestCloseableItem> manager) {
-        return new ObjectFactory<TestCloseableItem>() {
+    private ManagedFactory<TestCloseableItem> createManagedFactory(Manager<String, TestCloseableItem> manager) {
+        return new ManagedFactory<TestCloseableItem>() {
 
             @Override
             public TestCloseableItem createObject() throws Exception {
@@ -110,6 +110,35 @@ public class ObjectManagerLifeCycleTest {
                 object.close();
             }
         };
+    }
+
+    private ObjectFactory<TestCloseableItem> createObjectFactory(Manager<String, TestCloseableItem> manager) {
+        return new ObjectFactory<TestCloseableItem>() {
+
+            @Override
+            public TestCloseableItem createObject() throws Exception {
+                return Mockito.mock(TestCloseableItem.class);
+            }
+
+        };
+    }
+
+    private static class TestCloseableItemToManagedAdapter implements ManagedAdapter<TestCloseableItem> {
+        @Override
+        public void startObject(TestCloseableItem object) throws Exception {
+            object.start();
+        }
+
+        @Override
+        public void stopObject(TestCloseableItem object) throws Exception {
+            object.stop();
+        }
+
+        @Override
+        public void destroyObject(TestCloseableItem object) throws Exception {
+            object.close();
+        }
+
     }
 
     private static class TestCloseableItem {

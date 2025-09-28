@@ -37,6 +37,15 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
     private static final long serialVersionUID = 2387557309207392162L;
     private final Map<K, EntryLock> lockMap_ = new ConcurrentHashMap<>();
     private final Map<K, Entry<O>> entryMap_ = new ConcurrentHashMap<>();
+    private final ManagedAdapter<O> defaultAdapter_;
+
+    public ConcurrentKeyedManager() {
+        defaultAdapter_ = new NoopManagedAdapter();
+    }
+
+    public ConcurrentKeyedManager(ManagedAdapter<O> defaultAdapter) {
+        defaultAdapter_ = Objects.requireNonNull(defaultAdapter, "defaultAdapter");
+    }
 
     @Override
     public boolean containsKey(K key) {
@@ -193,9 +202,10 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
                         objectAndAdapter = entry.getObjectAndAdapter();
                         if (objectAndAdapter == null) {
                             final ObjectFactory<O> factory = factorySupplier.apply(key);
+                            final ManagedAdapter<O> adapter = (factory instanceof ManagedAdapter) ? (ManagedAdapter<O>) factory : getDefaultAdapter();
                             result = doObjectCreate(factory, key);
                             try {
-                                objectAndAdapter = entry.initObjectAndAdapter(result, factory);
+                                objectAndAdapter = entry.initObjectAndAdapter(result, adapter);
                                 internalPutEntry(key, entry);
                                 try {
                                     doObjectStart(objectAndAdapter);
@@ -209,7 +219,7 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
                                     throw e;
                                 }
                             } catch (Throwable e) {
-                                factory.destroyObject(result);
+                                adapter.destroyObject(result);
                                 throw e;
                             }
                             onEntryAdded(entry);
@@ -231,6 +241,10 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
             releaseEntryLock(key);
         }
         return result;
+    }
+
+    private ManagedAdapter<O> getDefaultAdapter() {
+        return Objects.requireNonNull(defaultAdapter_, "The default managed adapter not set. It's must be passed in to manager constructor.");
     }
 
     /**
@@ -294,10 +308,11 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
                         result = objectAndAdapter.object;
                     }
                 }
+                final ManagedAdapter<O> adapter = (factory instanceof ManagedAdapter) ? (ManagedAdapter<O>) factory : getDefaultAdapter();
                 entry = (entry != null) ? entry : newEntry(key);
                 final O newObject = doObjectCreate(factory, key);
                 try {
-                    objectAndAdapter = entry.initObjectAndAdapter(newObject, factory);
+                    objectAndAdapter = entry.initObjectAndAdapter(newObject, adapter);
                     internalPutEntry(key, entry);
                     try {
                         doObjectStart(objectAndAdapter);
@@ -311,7 +326,7 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
                         throw e;
                     }
                 } catch (Throwable e) {
-                    factory.destroyObject(result);
+                    adapter.destroyObject(result);
                     throw e;
                 }
                 onEntryAdded(entry);
@@ -543,9 +558,9 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
     protected final static class ObjectAndAdapter<O> {
 
         public final O object;
-        public final ObjectFactory<O> adapter;
+        public final ManagedAdapter<O> adapter;
 
-        public ObjectAndAdapter(O object, ObjectFactory<O> adapter) {
+        public ObjectAndAdapter(O object, ManagedAdapter<O> adapter) {
             this.object = Objects.requireNonNull(object);
             this.adapter = Objects.requireNonNull(adapter);
         }
@@ -596,8 +611,8 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
             return objectAndAdapter_;
         }
 
-        public ObjectAndAdapter<O> initObjectAndAdapter(O object, ObjectFactory<O> lifeCycleAdapter) {
-            final ObjectAndAdapter<O> objectAndAdapter = new ObjectAndAdapter<O>(object, lifeCycleAdapter);
+        public ObjectAndAdapter<O> initObjectAndAdapter(O object, ManagedAdapter<O> adapter) {
+            final ObjectAndAdapter<O> objectAndAdapter = new ObjectAndAdapter<O>(object, adapter);
             objectAndAdapter_ = objectAndAdapter;
             return objectAndAdapter;
         }
