@@ -101,6 +101,17 @@ public class ConcurrentKeyedManagerTest {
     }
 
     @Test
+    public void values_areEquals() throws Exception {
+        forSimpleManager(manager -> {
+            manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            manager.computeIfAbsent("Item2", SimpleTestItem::new);
+            manager.computeIfAbsent("Item3", SimpleTestItem::new);
+            Assertions.assertFalse(manager.values().isEmpty());
+            Assertions.assertEquals(3, manager.values().size());
+        });
+    }
+
+    @Test
     public void isEmpty_emptyManager_true() throws Exception {
         forSimpleManager(manager -> {
             Assertions.assertTrue(manager.isEmpty());

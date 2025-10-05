@@ -57,6 +57,11 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
         return Collections.unmodifiableSet(entryMap_.keySet());
     }
 
+    /**
+     * Return unmodifiable collection of values/ contained in manager.
+     *
+     * @return Unmodifiable collection of values
+     */
     public Collection<O> values() {
         Collection<O> vals = values;
         if (vals == null) {
@@ -86,15 +91,11 @@ public class ConcurrentKeyedManager<K, O> implements ConcurrentManager<K, O>, Se
                 }
 
                 public int size() {
-                    return this.size();
+                    return entryMap_.values().size();
                 }
 
                 public boolean isEmpty() {
-                    return this.isEmpty();
-                }
-
-                public void clear() {
-                    this.clear();
+                    return entryMap_.values().isEmpty();
                 }
 
                 public boolean contains(Object v) {
