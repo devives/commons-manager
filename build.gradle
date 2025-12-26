@@ -29,8 +29,8 @@ dependencies {
         implementation(project(path: ':commons-lang'))
         testImplementation(project(path: ':commons-lang', configuration: 'testArtifacts'))
     } else {
-        implementation("com.devives:devive-commons-lang:0.3.1")
-        testImplementation("com.devives:devive-commons-lang:0.3.1:tests")
+        implementation("com.devives:devive-commons-lang:0.3.2")
+        testImplementation("com.devives:devive-commons-lang:0.3.2:tests")
     }
     testImplementation platform('org.junit:junit-bom:5.9.1')
     testImplementation 'org.junit.jupiter:junit-jupiter'
