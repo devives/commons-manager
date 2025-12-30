@@ -127,7 +127,7 @@ public class ConcurrentKeyedManagerTest {
     }
 
     private static void forSimpleManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {
-        Manager<String, SimpleTestItem> manager = new ConcurrentKeyedManager<>();
+        Manager<String, SimpleTestItem> manager = new ConcurrentHashManager<>();
         try {
             consumer.accept(manager);
         } finally {
@@ -136,7 +136,7 @@ public class ConcurrentKeyedManagerTest {
     }
 
     private static void forCloseableManager(FailableConsumer<Manager<String, TestCloseableItem>> consumer) throws Exception {
-        Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
+        Manager<String, TestCloseableItem> manager = new ConcurrentHashManager<>();
         try {
             consumer.accept(manager);
         } finally {
@@ -146,7 +146,7 @@ public class ConcurrentKeyedManagerTest {
 
     @Test
     public void lifeCycle_onManagerClear_allRequiredMethodsCalled() throws Exception {
-        Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>(new TestCloseableItemToManagedAdapter());
+        Manager<String, TestCloseableItem> manager = new ConcurrentHashManager<>(new TestCloseableItemToManagedAdapter());
         TestCloseableItem item = manager.computeIfAbsent("item1", () -> Mockito.mock(TestCloseableItem.class));
         Mockito.verify(item, Mockito.atLeastOnce()).start();
         Mockito.verify(item, Mockito.atLeast(0)).stop();
@@ -159,7 +159,7 @@ public class ConcurrentKeyedManagerTest {
     @Test
     public void lifeCycle_onItemRemove_allRequiredMethodsCalled() throws Exception {
         final TestCloseableItem item;
-        final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
+        final Manager<String, TestCloseableItem> manager = new ConcurrentHashManager<>();
         try {
             item = manager.computeIfAbsent("item1", () -> Mockito.mock(TestCloseableItem.class));
             Mockito.verify(item, Mockito.atLeast(0)).start();
@@ -174,7 +174,7 @@ public class ConcurrentKeyedManagerTest {
     @Test
     public void recurrentItemAccess_onLifeCycleEvents_itemIsAvailableInManager() throws Exception {
         final String key_item1 = "item1";
-        final Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
+        final Manager<String, TestCloseableItem> manager = new ConcurrentHashManager<>();
         try {
             manager.computeIfAbsent(key_item1, new ObjectFactory<TestCloseableItem>() {
                 @Override

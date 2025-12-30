@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Manager of {@link Managed} instances.
  *
- * Class is an example of {@link ConcurrentKeyedManager} usage in more complex scenarios.
+ * Class is an example of {@link ConcurrentHashManager} usage in more complex scenarios.
  *
  * @param <O> type of managed object
  */
@@ -40,7 +40,7 @@ public class ConcurrentLifeCycleManager<O extends LifeCycle> extends Synchronize
     private final Manager<String, O> manager_ = new LocalConcurrentManagerImpl();
     private final AtomicLong sequence_ = new AtomicLong(0);
 
-    private final class LocalConcurrentManagerImpl extends ConcurrentKeyedManager<String, O> {
+    private final class LocalConcurrentManagerImpl extends ConcurrentHashManager<String, O> {
         private static final long serialVersionUID = 737665934900182556L;
 
         @Override

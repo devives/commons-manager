@@ -152,7 +152,7 @@ public class MultiThreadManagerTest {
         }
     }
 
-    private static class SimpleItemManager extends ConcurrentKeyedManager<String, SimpleItem> {
+    private static class SimpleItemManager extends ConcurrentHashManager<String, SimpleItem> {
         private static final long serialVersionUID = -7096838600955764301L;
 
         @Override

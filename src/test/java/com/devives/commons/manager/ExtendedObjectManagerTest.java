@@ -45,7 +45,7 @@ public class ExtendedObjectManagerTest {
             }
         };
 
-        Manager<String, TestCloseableItem> manager = new ConcurrentKeyedManager<>();
+        Manager<String, TestCloseableItem> manager = new ConcurrentHashManager<>();
         try {
             TestCloseableItem item1 = manager.computeIfAbsent("item1", testItemFactory);
             TestCloseableItem item2 = manager.computeIfAbsent("item2", extTestItemFactory);

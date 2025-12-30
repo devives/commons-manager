@@ -291,7 +291,7 @@ public class UsageCountingManager<K, O> implements Serializable {
         void beforeRemoveItem(O object);
     }
 
-    protected static class InternalManager<K, O> extends ConcurrentKeyedManager<K, O> {
+    protected static class InternalManager<K, O> extends ConcurrentHashManager<K, O> {
         private static final long serialVersionUID = 242380967546124799L;
         private volatile boolean removeUnusedObjects_ = true;
         private final Publisher<Listener> publisher_;
