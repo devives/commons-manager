@@ -67,7 +67,7 @@ public class UsageCountingManager<K, O> implements Serializable {
      * Возвращает объект соответствующий указанному ключу. Перед возвращением объекта увеличивает счётчик использований объекта.
      *
      * @param key ключ объекта
-     * @return объект соответсвующий ключу
+     * @return объект соответствующий ключу
      * @throws ManagerException Если объект с указанным ключом отсутствует в менеджере.
      */
     public O acquire(K key) throws ManagerException {
@@ -79,7 +79,7 @@ public class UsageCountingManager<K, O> implements Serializable {
      *
      * @param key     ключ объекта.
      * @param factory фабрика объекта.
-     * @return объект соответсвующий ключу.
+     * @return объект соответствующий ключу.
      */
     public O acquire(K key, Function<K, O> factory) {
         return internalManager_.computeIfAbsent(key, factory);
@@ -90,7 +90,7 @@ public class UsageCountingManager<K, O> implements Serializable {
      *
      * @param key     ключ объекта.
      * @param factory фабрика объекта.
-     * @return объект соответсвующий ключу.
+     * @return объект соответствующий ключу.
      */
     public O acquire(K key, ObjectFactory<O> factory) {
         return internalManager_.computeIfAbsent(key, factory);
@@ -101,7 +101,7 @@ public class UsageCountingManager<K, O> implements Serializable {
      *
      * @param key     ключ объекта.
      * @param factory фабрика объекта.
-     * @return объект соответсвующий ключу.
+     * @return объект соответствующий ключу.
      */
     public O acquire(K key, ManagedFactory<O> factory) {
         return internalManager_.computeIfAbsent(key, factory);
@@ -113,21 +113,9 @@ public class UsageCountingManager<K, O> implements Serializable {
      * @param key     ключ объекта.
      * @param factory фабрика объекта.
      * @param adapter адаптер жизненного цикла объекта к жизненному циклу управляемых объектов менеджера.
-     * @return объект соответсвующий ключу.
+     * @return объект соответствующий ключу.
      */
     public O acquire(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) {
-        return internalManager_.computeIfAbsent(key, factory, adapter);
-    }
-
-    /**
-     * Возвращает существующий или новый объект, соответствующий указанному ключу.
-     *
-     * @param key     ключ объекта.
-     * @param factory фабрика объекта.
-     * @param adapter адаптер жизненного цикла объекта к жизненному циклу управляемых объектов менеджера.
-     * @return объект соответсвующий ключу.
-     */
-    public O acquire(K key, ManagedFactory<O> factory, ManagedAdapter<O> adapter) {
         return internalManager_.computeIfAbsent(key, factory, adapter);
     }
 
@@ -292,7 +280,7 @@ public class UsageCountingManager<K, O> implements Serializable {
     }
 
     protected static class InternalManager<K, O> extends ConcurrentHashManager<K, O> {
-        private static final long serialVersionUID = 242380967546124799L;
+        private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
         private volatile boolean removeUnusedObjects_ = true;
         private final Publisher<Listener> publisher_;
 
@@ -322,7 +310,7 @@ public class UsageCountingManager<K, O> implements Serializable {
         }
 
         @Override
-        protected <E extends Entry<?>> E newEntry(K key) {
+        protected <E extends Entry<?>> E newEntry() {
             return (E) new CountingEntry<O>();
         }
 
@@ -357,32 +345,31 @@ public class UsageCountingManager<K, O> implements Serializable {
          * @param key ключ
          */
         public final void release(K key) {
-            final EntryLock entryLock = acquireEntryLock(key);
+            final Lock entryLock = acquireLock(key);
             try {
-                long usages;
                 CountingEntry<O> entry;
-                entryLock.readLock().lock();
+                entryLock.lockRead();
                 try {
                     entry = (CountingEntry<O>) internalGetEntryIfPresent(key);
                     Objects.requireNonNull(entry, String.format("Key '%s' not present in manager.", key));
-                    usages = entry.decUsages();
-                } finally {
-                    entryLock.readLock().unlock();
-                }
-                if (usages == 0 && isRemoveUnusedObjects()) {
-                    entryLock.writeLock().lock();
-                    try {
-                        if (canRemoveUnused(entry)) {
-                            doRemoveEntry(key, entry);
+                    long usages = entry.decUsages();
+                    if (usages == 0 && isRemoveUnusedObjects()) {
+                        entryLock.upgradeLock();
+                        try {
+                            if (canRemoveUnused(entry)) {
+                                doRemoveEntry(key, entry);
+                            }
+                        } finally {
+                            entryLock.downgradeLock();
                         }
-                    } finally {
-                        entryLock.writeLock().unlock();
                     }
+                } finally {
+                    entryLock.unlockRead();
                 }
             } catch (Exception e) {
                 throw ExceptionUtils.asUnchecked(e);
             } finally {
-                releaseEntryLock(key);
+                releaseLock(key);
             }
         }
 

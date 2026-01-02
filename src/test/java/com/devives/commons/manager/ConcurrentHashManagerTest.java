@@ -16,18 +16,15 @@
  */
 package com.devives.commons.manager;
 
-/**
- * Interface of concurrent thread-safe manager of objects.
- * <p>
- * Обеспечивает синхронизацию создания, запуска, остановки и уничтожения управляемого объекта между потоками.
- *
- * @param <K> type of key
- * @param <O> type of managed object
- * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
- * @see Manager
- */
-public interface ConcurrentManager<K, O> extends Manager<K, O> {
+public class ConcurrentHashManagerTest extends HashManagerTest {
 
+    @Override
+    protected <K, O> Manager<K, O> newManager() {
+        return new ConcurrentHashManager<>();
+    }
 
-
+    @Override
+    protected <K, O> Manager<K, O> newManager(ManagedAdapter<O> defaultAdapter) {
+        return new ConcurrentHashManager<>(defaultAdapter);
+    }
 }

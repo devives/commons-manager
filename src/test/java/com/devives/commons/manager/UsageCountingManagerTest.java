@@ -20,7 +20,7 @@ import com.devives.commons.lang.function.FailableConsumer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class UsageCountingObjectManagerTest {
+public class UsageCountingManagerTest {
 
     @Test
     public void acquire_twiceCall_oneObject() throws Exception {

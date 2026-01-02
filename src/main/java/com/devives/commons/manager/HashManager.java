@@ -17,47 +17,37 @@
 package com.devives.commons.manager;
 
 import com.devives.commons.lang.ExceptionUtils;
-import com.devives.commons.manager.lock.AbstractLockSource;
-import com.devives.commons.manager.lock.RWLockSource;
+import com.devives.commons.manager.lock.NoopLockSource;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Thread-safe concurrent implementation of {@link Manager}.
- * <p>
- * Обеспечивает межпотоковую синхронизацию создания/запуска/остановки/уничтожения объектов.
+ * Single-thread implementation of {@link Manager}.
  *
  * @param <K> type of key
  * @param <O> type of managed object
  * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
  */
-public class ConcurrentHashManager<K, O> extends AbstractManager<K, O> implements Serializable {
+public class HashManager<K, O> extends AbstractManager<K, O> implements Serializable {
 
     private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
 
-    public ConcurrentHashManager() {
-        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false));
+    public HashManager() {
+        super(new HashMap<>(), new NoopLockSource<K>());
     }
 
-    public ConcurrentHashManager(ManagedAdapter<O> defaultAdapter) {
-        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), defaultAdapter);
-    }
-
-    public ConcurrentHashManager(AbstractLockSource<K> lockSource) {
-        super(new ConcurrentHashMap<>(), lockSource);
-    }
-
-    public ConcurrentHashManager(AbstractLockSource<K> lockSource, ManagedAdapter<O> defaultAdapter) {
-        super(new ConcurrentHashMap<>(), lockSource, defaultAdapter);
+    public HashManager(ManagedAdapter<O> defaultAdapter) {
+        super(new HashMap<>(), new NoopLockSource<K>(), defaultAdapter);
     }
 
     protected final List<O> doRemoveAll() {
         final List<Throwable> exceptionList = new ArrayList<>();
         final List<O> list = new ArrayList<>();
-        keySet().forEach(key -> {
+        final List<K> keys = new ArrayList<>(keySet());
+        keys.forEach(key -> {
             try {
                 // The write lock will set in doRemove().
                 O item = doRemove(key);
@@ -74,7 +64,8 @@ public class ConcurrentHashManager<K, O> extends AbstractManager<K, O> implement
 
     protected final void doClear() {
         final List<Throwable> exceptionList = new ArrayList<>();
-        keySet().forEach(key -> {
+        final List<K> keys = new ArrayList<>(keySet());
+        keys.forEach(key -> {
             try {
                 // The write lock will set in doRemove().
                 doRemove(key);

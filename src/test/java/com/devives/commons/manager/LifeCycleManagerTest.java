@@ -14,12 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager.specials;
+package com.devives.commons.manager;
 
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.function.FailableConsumer;
 import com.devives.commons.lang.reflection.ProxyBuilder;
 import com.devives.commons.lifecycle.Closeable;
+import com.devives.commons.manager.specials.KeyedObjectFactory;
+import com.devives.commons.manager.specials.LifeCycleManager;
+import com.devives.commons.manager.specials.SynchronizedManagedAbst;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +39,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 
-public class ConcurrentManagedObjManagerTest {
+public class LifeCycleManagerTest {
 
     private final ServerContext serverContext = new ServerContextImpl();
     private final ActiveSessionFactory testSession1Factory = new ActiveSessionFactory(serverContext);
@@ -75,7 +78,7 @@ public class ConcurrentManagedObjManagerTest {
         forTestManager(manager -> {
             AbstractSession session1 = manager.create(testSession1Factory);
             session1.runInSessionThread(() ->
-                    Logger.getLogger(ConcurrentManagedObjManagerTest.class.getCanonicalName()).info("Some work in Thread = " + Thread.currentThread().getName())
+                    Logger.getLogger(LifeCycleManagerTest.class.getCanonicalName()).info("Some work in Thread = " + Thread.currentThread().getName())
             ).get();
         });
     }
@@ -85,7 +88,7 @@ public class ConcurrentManagedObjManagerTest {
         forTestManager(manager -> {
             AbstractSession session1 = manager.create(testSession2Factory);
             session1.runInSessionThread(() ->
-                    Logger.getLogger(ConcurrentManagedObjManagerTest.class.getCanonicalName()).info("Some work in Thread = " + Thread.currentThread().getName())
+                    Logger.getLogger(LifeCycleManagerTest.class.getCanonicalName()).info("Some work in Thread = " + Thread.currentThread().getName())
             ).get();
         });
     }
@@ -120,8 +123,8 @@ public class ConcurrentManagedObjManagerTest {
         });
     }
 
-    private static void forTestManager(FailableConsumer<ConcurrentManagedObjManager<AbstractSession>> consumer) throws Exception {
-        ConcurrentManagedObjManager<AbstractSession> manager = new ConcurrentManagedObjManager<>();
+    private static void forTestManager(FailableConsumer<LifeCycleManager<AbstractSession>> consumer) throws Exception {
+        LifeCycleManager<AbstractSession> manager = new LifeCycleManager<>();
         try {
             consumer.accept(manager);
         } finally {
@@ -169,21 +172,22 @@ public class ConcurrentManagedObjManagerTest {
     }
 
     /**
-     *
+     *LifeCycleFactory<String, AbstractSession, ConcurrentLifeCycleManager<AbstractSession>>
      */
-    private static abstract class SessionFactoryAbst implements ManagedKeyedFactory<String, AbstractSession, ConcurrentManagedObjManager<AbstractSession>> {
+    private static abstract class SessionFactoryAbst implements KeyedObjectFactory<Object, AbstractSession, LifeCycleManager<AbstractSession>> {
 
         protected final String keyPrefix_;
         protected final ServerContext serverContext_;
         protected volatile DataSource dataSource_;
+        protected final AtomicLong sequence_ = new AtomicLong(0);
 
         public SessionFactoryAbst(String keyPrefix, ServerContext serverContext) {
             keyPrefix_ = Objects.requireNonNull(keyPrefix);
             serverContext_ = Objects.requireNonNull(serverContext);
         }
 
-        public String buildKey(long sequence) {
-            return keyPrefix_ + sequence;
+        public String buildKey() {
+            return keyPrefix_ + sequence_.incrementAndGet();
         }
 
         protected void acquireResources() {
@@ -207,10 +211,10 @@ public class ConcurrentManagedObjManagerTest {
         }
 
         @Override
-        public AbstractSession createObject(String key, ConcurrentManagedObjManager<AbstractSession> manager) throws Exception {
+        public AbstractSession createObject(Object key, LifeCycleManager<AbstractSession> manager) throws Exception {
             acquireResources();
             executorService_ = Executors.newSingleThreadExecutor();
-            return new ActiveSession(key, dataSource_, executorService_, manager::remove);
+            return new ActiveSession(String.valueOf(key), dataSource_, executorService_, manager::remove);
         }
 
         @Override
@@ -248,9 +252,9 @@ public class ConcurrentManagedObjManagerTest {
         }
 
         @Override
-        public AbstractSession createObject(String key, ConcurrentManagedObjManager<AbstractSession> manager) throws Exception {
+        public AbstractSession createObject(Object key, LifeCycleManager<AbstractSession> manager) throws Exception {
             acquireResources();
-            return new PassiveSession(key, dataSource_, manager::remove);
+            return new PassiveSession(String.valueOf(key), dataSource_, manager::remove);
         }
 
         @Override

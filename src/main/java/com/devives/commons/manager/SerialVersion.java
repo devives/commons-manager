@@ -14,15 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager.specials;
+package com.devives.commons.manager;
 
-import com.devives.commons.lifecycle.Closeable;
-import com.devives.commons.manager.ObjectFactory;
+import java.util.Objects;
 
-/**
- * @param <I> type of constructed object.
- * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
- */
-public abstract class CloseableFactory<I extends Closeable> extends CloseableAdapter<I> implements ObjectFactory<I> {
+public final class SerialVersion {
 
+    private SerialVersion() {
+    }
+
+    public static final long SERIAL_VERSION_UID = Objects.hashCode("0.5.0");
 }

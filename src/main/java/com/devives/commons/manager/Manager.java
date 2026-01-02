@@ -236,4 +236,25 @@ public interface Manager<K, O> {
         });
     }
 
+    interface LockSource<K> {
+        Lock acquire(K key);
+
+        void release(K key);
+    }
+
+    interface Lock {
+
+        void lockRead();
+
+        void unlockRead();
+
+        void lockWrite();
+
+        void unlockWrite();
+
+        void upgradeLock();
+
+        void downgradeLock();
+    }
+
 }

@@ -14,23 +14,59 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.lock;
+
+import com.devives.commons.manager.Manager;
+import com.devives.commons.manager.SerialVersion;
 
 import java.io.Serializable;
 
-/**
- * A do-nothing managed object adapter.
- */
-final class NoopManagedAdapter<O> implements ManagedAdapter<O>, Serializable {
+public final class NoopLockSource<K> implements Manager.LockSource<K>, Serializable {
     private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
 
-    @Override
-    public void startObject(O object) throws Exception {
+    private final Manager.Lock noopLock = new NoopLock();
 
+    @Override
+    public Manager.Lock acquire(final K k) {
+        return noopLock;
     }
 
     @Override
-    public void stopObject(O object) throws Exception {
-
+    public void release(final K k) {
+        // Do nothing.
     }
+
+    static class NoopLock implements Manager.Lock, Serializable {
+
+        @Override
+        public void lockRead() {
+
+        }
+
+        @Override
+        public void unlockRead() {
+
+        }
+
+        @Override
+        public void lockWrite() {
+
+        }
+
+        @Override
+        public void unlockWrite() {
+
+        }
+
+        @Override
+        public void upgradeLock() {
+
+        }
+
+        @Override
+        public void downgradeLock() {
+
+        }
+    }
+
 }

@@ -24,27 +24,25 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Manager of {@link Managed} instances.
+ * Manager of {@link LifeCycle} instances.
  *
  * Class is an example of {@link ConcurrentHashManager} usage in more complex scenarios.
  *
  * @param <O> type of managed object
  */
-public class ConcurrentLifeCycleManager<O extends LifeCycle> extends SynchronizedCloseableAbst implements Serializable {
+public class LifeCycleManager<O extends LifeCycle> extends SynchronizedCloseableAbst implements Serializable {
 
     private static final long serialVersionUID = 4885566608544537251L;
-    private final Map<IdentityWrapper<O>, String> object2keyMap_ = new ConcurrentHashMap<>();
-    private final Manager<String, O> manager_ = new LocalConcurrentManagerImpl();
-    private final AtomicLong sequence_ = new AtomicLong(0);
+    private final Map<IdentityWrapper<O>, Object> object2keyMap_ = new ConcurrentHashMap<>();
+    private final Manager<Object, O> internalManager_ = new InternalManager();
 
-    private final class LocalConcurrentManagerImpl extends ConcurrentHashManager<String, O> {
+    private final class InternalManager extends ConcurrentHashManager<Object, O> {
         private static final long serialVersionUID = 737665934900182556L;
 
         @Override
-        protected void onObjectCreated(String key, O object) throws Exception {
+        protected void onObjectCreated(Object key, O object) throws Exception {
             object2keyMap_.put(new IdentityWrapper<>(object), key);
         }
 
@@ -61,12 +59,12 @@ public class ConcurrentLifeCycleManager<O extends LifeCycle> extends Synchronize
      * @param factory factory of managed objects.
      * @return new instance of managed object.
      */
-    public O create(LifeCycleFactory<String, O, ConcurrentLifeCycleManager<O>> factory) {
-        final String key = factory.buildKey(sequence_.incrementAndGet());
-        return manager_.computeIfAbsent(key, new ManagedFactory<O>() {
+    public O create(KeyedObjectFactory<Object, O, LifeCycleManager<O>> factory) {
+        final Object key = factory.buildKey();
+        return internalManager_.computeIfAbsent(key, new ManagedFactory<O>() {
             @Override
             public O createObject() throws Exception {
-                return factory.createObject(key, ConcurrentLifeCycleManager.this);
+                return factory.createObject(key, LifeCycleManager.this);
             }
 
             @Override
@@ -99,7 +97,7 @@ public class ConcurrentLifeCycleManager<O extends LifeCycle> extends Synchronize
      * @throws ManagerException if no instance with {@code key} present in manager.
      */
     public O get(String key) throws ManagerException {
-        return manager_.get(key);
+        return internalManager_.get(key);
     }
 
     /**
@@ -108,9 +106,9 @@ public class ConcurrentLifeCycleManager<O extends LifeCycle> extends Synchronize
      * @param object managed object.
      */
     public void remove(O object) {
-        final String key = object2keyMap_.remove(new IdentityWrapper<>(object));
+        final Object key = object2keyMap_.remove(new IdentityWrapper<>(object));
         if (key != null) {
-            O removed = manager_.remove(key);
+            O removed = internalManager_.remove(key);
             assert object.equals(removed);
         }
     }
@@ -121,8 +119,8 @@ public class ConcurrentLifeCycleManager<O extends LifeCycle> extends Synchronize
      * @return a set view of the keys contained in this manager.
      * @see ConcurrentHashMap#keySet()
      */
-    public Set<String> keySet() {
-        return manager_.keySet();
+    public Set<Object> keySet() {
+        return internalManager_.keySet();
     }
 
     /**
@@ -132,7 +130,7 @@ public class ConcurrentLifeCycleManager<O extends LifeCycle> extends Synchronize
      */
 
     public boolean isEmpty() {
-        return manager_.isEmpty();
+        return internalManager_.isEmpty();
     }
 
     /**
@@ -141,13 +139,13 @@ public class ConcurrentLifeCycleManager<O extends LifeCycle> extends Synchronize
      * @return count.
      */
     public long size() {
-        return manager_.size();
+        return internalManager_.size();
     }
 
     @Override
     protected void onClose() throws Exception {
         object2keyMap_.clear();
-        manager_.removeAll();
+        internalManager_.removeAll();
     }
 
 }

@@ -17,6 +17,7 @@
 package com.devives.commons.manager;
 
 
+import java.io.Serializable;
 import java.util.Objects;
 
 /**
@@ -24,7 +25,9 @@ import java.util.Objects;
  *
  * @param <T> type of objects in the manager
  */
-public final class IdentityWrapper<T> {
+public final class IdentityWrapper<T> implements Serializable {
+    private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
+
     /**
      * Wrapped object
      */

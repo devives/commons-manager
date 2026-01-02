@@ -18,8 +18,13 @@ package com.devives.commons.manager;
 
 import com.devives.commons.Task;
 import com.devives.commons.lang.ExceptionUtils;
+import com.devives.commons.manager.lock.RWLockSource;
+import com.devives.commons.manager.lock.SyncLockSource;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,18 +33,30 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 public class MultiThreadManagerTest {
 
-    private final SimpleItemManager manager_ = new SimpleItemManager();
     private final ExecutorService executorService_ = Executors.newScheduledThreadPool(10);
+    private Manager<String, SimpleItem> manager_;
+    private final int durationSec = 1;
 
-    @Test
-    public void test_onAssertErrors() throws Exception {
+    private static Stream<Arguments> provideConcurrentManager() {
+        return Stream.of(
+                Arguments.of("FairRWLock", new ConcurrentHashManager<String, SimpleItem>(new RWLockSource<>(true))),
+                Arguments.of("NoFairRWLock", new ConcurrentHashManager<String, SimpleItem>(new RWLockSource<>(false))),
+                Arguments.of("SyncLock", new ConcurrentHashManager<String, SimpleItem>(new SyncLockSource<>()))
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideConcurrentManager")
+    public void test_onAssertErrors(String desc, Manager<String, SimpleItem> manager) throws Exception {
+        manager_ = manager;
         List<Future<?>> futureList = new ArrayList<>();
         List<Task> taskList = Arrays.asList(new TaskCompute(), new TaskGet(), new TaskGetIfPresent(), new TaskRemove(), new TaskKeySet(), new TaskValues());
         taskList.forEach(task -> futureList.add(executorService_.submit(task)));
-        Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+        Thread.sleep(TimeUnit.SECONDS.toMillis(durationSec));
         taskList.forEach(Task::cancel);
         try {
             try {
@@ -64,10 +81,11 @@ public class MultiThreadManagerTest {
 
     @Test
     public void size_expectedZero() throws Exception {
+        manager_ = new ConcurrentHashManager<>();
         List<Future<?>> futureList = new ArrayList<>();
         List<Task> taskList = Arrays.asList(new TaskGet(), new TaskGetIfPresent(), new TaskRemove(), new TaskSizeZero());
         taskList.forEach(task -> futureList.add(executorService_.submit(task)));
-        Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+        Thread.sleep(TimeUnit.SECONDS.toMillis(durationSec));
         taskList.forEach(Task::cancel);
         try {
             try {
@@ -152,37 +170,9 @@ public class MultiThreadManagerTest {
         }
     }
 
-    private static class SimpleItemManager extends ConcurrentHashManager<String, SimpleItem> {
-        private static final long serialVersionUID = -7096838600955764301L;
-
-        @Override
-        protected void onObjectDestroyed(SimpleItem object) throws Exception {
-            object.close();
-        }
-    }
-
-
-    private static class SimpleItem implements AutoCloseable {
+    private static class SimpleItem {
 
         private final long timestamp = System.nanoTime();
-        private volatile boolean opened_ = true;
-
-        public SimpleItem() {
-//            try {
-//                Thread.sleep(50);
-//            } catch (InterruptedException e) {
-//                throw new RuntimeException(e);
-//            }
-        }
-
-        @Override
-        public void close() throws Exception {
-            opened_ = false;
-        }
-
-        public boolean isOpened() {
-            return opened_;
-        }
 
         @Override
         public String toString() {

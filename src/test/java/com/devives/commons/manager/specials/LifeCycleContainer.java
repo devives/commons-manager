@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * Синхронизированная реализация контейнера элементов с жизненным циклом.
  */
-public class SynchronizedLifeCycleContainer extends AbstractLifeCycle implements LifeCycleContainer {
+public class LifeCycleContainer extends AbstractLifeCycle {
     /**
      * Содержит список управляемых элементов.
      */
@@ -33,7 +33,7 @@ public class SynchronizedLifeCycleContainer extends AbstractLifeCycle implements
     /**
      * Управляет запуском и остановкой управляемых элементов.
      */
-    private final ConcurrentLifeCycleManager<LifeCycle> manager = new ConcurrentLifeCycleManager<>();
+    private final LifeCycleManager<LifeCycle> manager = new LifeCycleManager<>();
 
     /**
      * Запускает контейнер и все элементы содержащиеся в контейнере.
@@ -61,11 +61,10 @@ public class SynchronizedLifeCycleContainer extends AbstractLifeCycle implements
      * @param lifeCycle {@inheritDoc}
      * @throws IllegalArgumentException При повторном добавлении элемента в контейнер.
      */
-    @Override
     public void add(LifeCycle lifeCycle) {
         synchronized (itemSet) {
             if (!itemSet.add(lifeCycle)) {
-                throw new IllegalArgumentException("A duplicate element in a container..");
+                throw new IllegalArgumentException("A duplicate element in a container.");
             }
             if (isStarted()) {
                 internalStartItem(lifeCycle);
@@ -73,7 +72,6 @@ public class SynchronizedLifeCycleContainer extends AbstractLifeCycle implements
         }
     }
 
-    @Override
     public void remove(LifeCycle lifeCycle) {
         synchronized (itemSet) {
             internalStopItem(lifeCycle);
@@ -102,7 +100,7 @@ public class SynchronizedLifeCycleContainer extends AbstractLifeCycle implements
         }
     }
 
-    private static class LocalLifeCycleFactory implements LifeCycleFactory<String, LifeCycle, ConcurrentLifeCycleManager<LifeCycle>> {
+    private static class LocalLifeCycleFactory implements KeyedObjectFactory<Object, LifeCycle, LifeCycleManager<LifeCycle>> {
 
         private final LifeCycle lifeCycle;
 
@@ -111,12 +109,12 @@ public class SynchronizedLifeCycleContainer extends AbstractLifeCycle implements
         }
 
         @Override
-        public String buildKey(long sequence) {
-            return lifeCycle.getClass().getCanonicalName() + "-" + sequence;
+        public String buildKey() {
+            return lifeCycle.getClass().getCanonicalName();
         }
 
         @Override
-        public LifeCycle createObject(String key, ConcurrentLifeCycleManager<LifeCycle> manager) {
+        public LifeCycle createObject(Object key, LifeCycleManager<LifeCycle> manager) {
             return lifeCycle;
         }
 

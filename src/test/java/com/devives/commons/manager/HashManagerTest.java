@@ -21,19 +21,18 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-public class ConcurrentKeyedManagerTest {
-
+public class HashManagerTest {
 
     @Test
     public void get_emptyManager_exceptionThrow() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             Assertions.assertThrows(ManagerException.class, () -> manager.get("Item1"));
         });
     }
 
     @Test
     public void computeIfAbsent_emptyManager_nonNull() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
             Assertions.assertNotNull(item1);
         });
@@ -41,7 +40,7 @@ public class ConcurrentKeyedManagerTest {
 
     @Test
     public void computeIfAbsent_twiceCall_oneObject() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
             SimpleTestItem item1_1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
             Assertions.assertEquals(item1, item1_1);
@@ -50,7 +49,7 @@ public class ConcurrentKeyedManagerTest {
 
     @Test
     public void get_afterComputeIfAbsent_areEquals() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
             SimpleTestItem item1_1 = manager.get("Item1");
             Assertions.assertEquals(item1, item1_1);
@@ -59,14 +58,14 @@ public class ConcurrentKeyedManagerTest {
 
     @Test
     public void containsKey_emptyManager_returnFalse() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             Assertions.assertFalse(manager.containsKey("Item1"));
         });
     }
 
     @Test
     public void containsKey_afterRemove_returnFalse() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             manager.computeIfAbsent("Item1", SimpleTestItem::new);
             manager.remove("Item1");
             Assertions.assertFalse(manager.containsKey("Item1"));
@@ -75,14 +74,14 @@ public class ConcurrentKeyedManagerTest {
 
     @Test
     public void remove_emptyManager_returnNull() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             Assertions.assertNull(manager.remove("Item1"));
         });
     }
 
     @Test
     public void remove_afterComputeIfAbsent_areEquals() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
             SimpleTestItem item1_1 = manager.get("Item1");
             Assertions.assertEquals(item1, item1_1);
@@ -91,7 +90,7 @@ public class ConcurrentKeyedManagerTest {
 
     @Test
     public void removeAll_afterComputeIfAbsent_areEquals() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             manager.computeIfAbsent("Item1", SimpleTestItem::new);
             manager.computeIfAbsent("Item2", SimpleTestItem::new);
             manager.computeIfAbsent("Item3", SimpleTestItem::new);
@@ -102,7 +101,7 @@ public class ConcurrentKeyedManagerTest {
 
     @Test
     public void values_areEquals() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             manager.computeIfAbsent("Item1", SimpleTestItem::new);
             manager.computeIfAbsent("Item2", SimpleTestItem::new);
             manager.computeIfAbsent("Item3", SimpleTestItem::new);
@@ -113,30 +112,29 @@ public class ConcurrentKeyedManagerTest {
 
     @Test
     public void isEmpty_emptyManager_true() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             Assertions.assertTrue(manager.isEmpty());
         });
     }
 
     @Test
     public void isEmpty_nonEmptyManager_false() throws Exception {
-        forSimpleManager(manager -> {
+        forManager(manager -> {
             manager.computeIfAbsent("Item1", SimpleTestItem::new);
             Assertions.assertFalse(manager.isEmpty());
         });
     }
 
-    private static void forSimpleManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {
-        Manager<String, SimpleTestItem> manager = new ConcurrentHashManager<>();
-        try {
-            consumer.accept(manager);
-        } finally {
-            manager.clear();
-        }
+    protected <K, O> Manager<K, O> newManager() {
+        return new HashManager<>();
     }
 
-    private static void forCloseableManager(FailableConsumer<Manager<String, TestCloseableItem>> consumer) throws Exception {
-        Manager<String, TestCloseableItem> manager = new ConcurrentHashManager<>();
+    protected <K, O> Manager<K, O> newManager(ManagedAdapter<O> defaultAdapter) {
+        return new HashManager<>(defaultAdapter);
+    }
+
+    private void forManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {
+        Manager<String, SimpleTestItem> manager = newManager();
         try {
             consumer.accept(manager);
         } finally {
@@ -146,7 +144,7 @@ public class ConcurrentKeyedManagerTest {
 
     @Test
     public void lifeCycle_onManagerClear_allRequiredMethodsCalled() throws Exception {
-        Manager<String, TestCloseableItem> manager = new ConcurrentHashManager<>(new TestCloseableItemToManagedAdapter());
+        Manager<String, TestCloseableItem> manager = newManager(new TestCloseableItemToManagedAdapter());
         TestCloseableItem item = manager.computeIfAbsent("item1", () -> Mockito.mock(TestCloseableItem.class));
         Mockito.verify(item, Mockito.atLeastOnce()).start();
         Mockito.verify(item, Mockito.atLeast(0)).stop();
@@ -159,7 +157,7 @@ public class ConcurrentKeyedManagerTest {
     @Test
     public void lifeCycle_onItemRemove_allRequiredMethodsCalled() throws Exception {
         final TestCloseableItem item;
-        final Manager<String, TestCloseableItem> manager = new ConcurrentHashManager<>();
+        final Manager<String, TestCloseableItem> manager = newManager();
         try {
             item = manager.computeIfAbsent("item1", () -> Mockito.mock(TestCloseableItem.class));
             Mockito.verify(item, Mockito.atLeast(0)).start();
@@ -174,7 +172,7 @@ public class ConcurrentKeyedManagerTest {
     @Test
     public void recurrentItemAccess_onLifeCycleEvents_itemIsAvailableInManager() throws Exception {
         final String key_item1 = "item1";
-        final Manager<String, TestCloseableItem> manager = new ConcurrentHashManager<>();
+        final Manager<String, TestCloseableItem> manager = newManager();
         try {
             manager.computeIfAbsent(key_item1, new ObjectFactory<TestCloseableItem>() {
                 @Override

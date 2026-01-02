@@ -16,17 +16,32 @@
  */
 package com.devives.commons.manager.specials;
 
+import com.devives.commons.lang.function.FailableConsumer;
+import com.devives.commons.lifecycle.Closeable;
 import com.devives.commons.lifecycle.LifeCycle;
-import com.devives.commons.manager.ManagedAdapter;
+import com.devives.commons.lifecycle.SynchronizedLifeCycleAbst;
 
-public interface LifeCycleFactory<K, O extends LifeCycle, M> extends ManagedAdapter<O> {
+import java.util.Objects;
 
-    K buildKey(long sequence);
+/**
+ * Synchronize implementation of {@link LifeCycle}.
+ *
+ * @param <SELF> self type.
+ */
+public abstract class SynchronizedManagedAbst<SELF extends LifeCycle> extends SynchronizedLifeCycleAbst implements LifeCycle, Closeable {
 
-    O createObject(K key, M manager) throws Exception;
+    private final FailableConsumer<SELF> removeCallback_;
 
-    default void destroyObject(O object) throws Exception {
-
+    public SynchronizedManagedAbst(FailableConsumer<SELF> removeCallback) {
+        removeCallback_ = Objects.requireNonNull(removeCallback);
     }
 
+    @Override
+    public final void close() throws Exception {
+        onClose();
+    }
+
+    protected void onClose() throws Exception {
+        removeCallback_.accept((SELF) this);
+    }
 }

@@ -16,15 +16,13 @@
  */
 package com.devives.commons.manager.specials;
 
+import com.devives.commons.lifecycle.LifeCycle;
 import com.devives.commons.manager.ManagedAdapter;
 
-public interface ManagedKeyedFactory<K, O extends Managed, M> extends ManagedAdapter<O> {
+public interface KeyedObjectFactory<K, O extends LifeCycle, M> extends ManagedAdapter<O> {
 
-    K buildKey(long sequence);
+    K buildKey();
 
     O createObject(K key, M manager) throws Exception;
 
-    default void destroyObject(O object) throws Exception {
-        object.close();
-    }
 }
