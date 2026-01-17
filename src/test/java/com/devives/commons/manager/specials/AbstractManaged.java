@@ -17,18 +17,17 @@
 package com.devives.commons.manager.specials;
 
 import com.devives.commons.lang.function.FailableConsumer;
-import com.devives.commons.lifecycle.AbstractLifeCycle;
-import com.devives.commons.lifecycle.Closeable;
 import com.devives.commons.lifecycle.LifeCycle;
+import com.devives.commons.lifecycle.LifeCycleAbst;
 
 import java.util.Objects;
 
 /**
  * Implementation of {@link LifeCycle}.
  *
- * @param SELF self type.
+ * @param <SELF> self type.
  */
-public abstract class AbstractManaged<SELF extends LifeCycle> extends AbstractLifeCycle implements Closeable {
+public abstract class AbstractManaged<SELF extends LifeCycle> extends LifeCycleAbst implements AutoCloseable {
 
     private final FailableConsumer<SELF> removeCallback_;
 

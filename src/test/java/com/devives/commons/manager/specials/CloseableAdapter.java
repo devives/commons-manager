@@ -16,15 +16,14 @@
  */
 package com.devives.commons.manager.specials;
 
-import com.devives.commons.lifecycle.Closeable;
 import com.devives.commons.manager.ManagedAdapter;
 
 /**
- * Life cycle adapter for {@link Closeable} object.
+ * Life cycle adapter for {@link AutoCloseable} object.
  *
  * @param <I> type of closeable object.
  */
-public class CloseableAdapter<I extends Closeable> implements ManagedAdapter<I> {
+public class CloseableAdapter<I extends AutoCloseable> implements ManagedAdapter<I> {
 
     @Override
     public void startObject(I object) throws Exception {

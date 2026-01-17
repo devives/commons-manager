@@ -46,7 +46,7 @@ public class TheDescendantManagerTest {
     }
 
     private static class TestCloseableItemManager extends ConcurrentHashManager<String, TestCloseableItem> {
-        private static final long serialVersionUID = -9117715476640371271L;
+        private static final long serialVersionUID = 1L;
         private final ConcurrentMap<String, TestCloseableItem> additionalIndex_ = new ConcurrentHashMap<>();
 
         public TestCloseableItemManager() {

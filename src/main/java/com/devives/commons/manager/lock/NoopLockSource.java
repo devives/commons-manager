@@ -17,12 +17,11 @@
 package com.devives.commons.manager.lock;
 
 import com.devives.commons.manager.Manager;
-import com.devives.commons.manager.SerialVersion;
 
 import java.io.Serializable;
 
 public final class NoopLockSource<K> implements Manager.LockSource<K>, Serializable {
-    private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
+    private static final long serialVersionUID = 1L;
 
     private final Manager.Lock noopLock = new NoopLock();
 

@@ -26,7 +26,7 @@ import java.util.Objects;
  * @param <T> type of objects in the manager
  */
 public final class IdentityWrapper<T> implements Serializable {
-    private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
+    private static final long serialVersionUID = 1L;
 
     /**
      * Wrapped object

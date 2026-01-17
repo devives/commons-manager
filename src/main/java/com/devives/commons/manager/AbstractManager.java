@@ -610,7 +610,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     }
 
     protected static class Entry<O> implements Serializable {
-        private static final long serialVersionUID = -5529739784330238632L;
+        private static final long serialVersionUID = 1L;
         /**
          * Volatile variable for the atomic non blocking read write operations.
          */

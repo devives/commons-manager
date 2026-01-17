@@ -16,8 +16,8 @@
  */
 package com.devives.commons.manager.specials;
 
-import com.devives.commons.lifecycle.AbstractLifeCycle;
 import com.devives.commons.lifecycle.LifeCycle;
+import com.devives.commons.lifecycle.LifeCycleAbst;
 
 import java.util.LinkedHashSet;
 import java.util.Objects;
@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * Синхронизированная реализация контейнера элементов с жизненным циклом.
  */
-public class LifeCycleContainer extends AbstractLifeCycle {
+public class LifeCycleContainer extends LifeCycleAbst {
     /**
      * Содержит список управляемых элементов.
      */

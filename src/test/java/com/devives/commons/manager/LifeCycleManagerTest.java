@@ -19,7 +19,6 @@ package com.devives.commons.manager;
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.function.FailableConsumer;
 import com.devives.commons.lang.reflection.ProxyBuilder;
-import com.devives.commons.lifecycle.Closeable;
 import com.devives.commons.manager.specials.KeyedObjectFactory;
 import com.devives.commons.manager.specials.LifeCycleManager;
 import com.devives.commons.manager.specials.SynchronizedManagedAbst;
@@ -274,7 +273,7 @@ public class LifeCycleManagerTest {
         }
     }
 
-    private interface Session extends Closeable {
+    private interface Session extends AutoCloseable {
 
         String getId();
 

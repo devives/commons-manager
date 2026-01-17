@@ -18,13 +18,12 @@ package com.devives.commons.manager.lock;
 
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.manager.Manager;
-import com.devives.commons.manager.SerialVersion;
 
 import java.io.Serializable;
 
 
 public final class SyncLockSource<K> extends AbstractLockSource<K> implements Serializable {
-    private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
+    private static final long serialVersionUID = 1L;
 
     @Override
     protected <E extends Manager.Lock> E doAcquireLock() {

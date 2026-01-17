@@ -34,12 +34,12 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class LifeCycleManager<O extends LifeCycle> extends SynchronizedCloseableAbst implements Serializable {
 
-    private static final long serialVersionUID = 4885566608544537251L;
+    private static final long serialVersionUID = 1L;
     private final Map<IdentityWrapper<O>, Object> object2keyMap_ = new ConcurrentHashMap<>();
     private final Manager<Object, O> internalManager_ = new InternalManager();
 
     private final class InternalManager extends ConcurrentHashManager<Object, O> {
-        private static final long serialVersionUID = 737665934900182556L;
+        private static final long serialVersionUID = 1L;
 
         @Override
         protected void onObjectCreated(Object key, O object) throws Exception {

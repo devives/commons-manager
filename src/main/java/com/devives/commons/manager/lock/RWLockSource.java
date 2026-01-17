@@ -17,13 +17,12 @@
 package com.devives.commons.manager.lock;
 
 import com.devives.commons.manager.Manager;
-import com.devives.commons.manager.SerialVersion;
 
 import java.io.Serializable;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public final class RWLockSource<K> extends AbstractLockSource<K> implements Serializable {
-    private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
+    private static final long serialVersionUID = 1L;
 
     private final boolean fair_;
 

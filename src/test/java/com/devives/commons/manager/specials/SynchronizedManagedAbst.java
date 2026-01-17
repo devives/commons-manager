@@ -17,7 +17,6 @@
 package com.devives.commons.manager.specials;
 
 import com.devives.commons.lang.function.FailableConsumer;
-import com.devives.commons.lifecycle.Closeable;
 import com.devives.commons.lifecycle.LifeCycle;
 import com.devives.commons.lifecycle.SynchronizedLifeCycleAbst;
 
@@ -28,7 +27,7 @@ import java.util.Objects;
  *
  * @param <SELF> self type.
  */
-public abstract class SynchronizedManagedAbst<SELF extends LifeCycle> extends SynchronizedLifeCycleAbst implements LifeCycle, Closeable {
+public abstract class SynchronizedManagedAbst<SELF extends LifeCycle> extends SynchronizedLifeCycleAbst implements LifeCycle, AutoCloseable {
 
     private final FailableConsumer<SELF> removeCallback_;
 

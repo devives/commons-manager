@@ -22,7 +22,7 @@ import java.io.Serializable;
  * A do-nothing managed object adapter.
  */
 final class NoopManagedAdapter<O> implements ManagedAdapter<O>, Serializable {
-    private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
+    private static final long serialVersionUID = 1L;
 
     @Override
     public void startObject(O object) throws Exception {

@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ConcurrentHashManager<K, O> extends AbstractManager<K, O> implements Serializable {
 
-    private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
+    private static final long serialVersionUID = 1L;
 
     public ConcurrentHashManager() {
         super(new ConcurrentHashMap<>(), new RWLockSource<K>(false));

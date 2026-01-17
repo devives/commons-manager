@@ -38,7 +38,7 @@ import java.util.function.Function;
  */
 public class UsageCountingManager<K, O> implements Serializable {
 
-    private static final long serialVersionUID = 8389806804677309190L;
+    private static final long serialVersionUID = 1L;
     private final InternalManager<K, O> internalManager_;
 
     public UsageCountingManager() {
@@ -280,7 +280,7 @@ public class UsageCountingManager<K, O> implements Serializable {
     }
 
     protected static class InternalManager<K, O> extends ConcurrentHashManager<K, O> {
-        private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
+        private static final long serialVersionUID = 1L;
         private volatile boolean removeUnusedObjects_ = true;
         private final Publisher<Listener> publisher_;
 
@@ -384,7 +384,7 @@ public class UsageCountingManager<K, O> implements Serializable {
         }
 
         protected static class CountingEntry<I> extends Entry<I> {
-            private static final long serialVersionUID = 1626761723478454362L;
+            private static final long serialVersionUID = 1L;
             private final AtomicInteger usageCounter = new AtomicInteger();
 
             public int getUsages() {

@@ -33,7 +33,7 @@ import java.util.List;
  */
 public class HashManager<K, O> extends AbstractManager<K, O> implements Serializable {
 
-    private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
+    private static final long serialVersionUID = 1L;
 
     public HashManager() {
         super(new HashMap<>(), new NoopLockSource<K>());

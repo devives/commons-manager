@@ -29,7 +29,7 @@ import java.io.Serializable;
 @Deprecated
 public class ConcurrentKeyedManager<K, O> extends ConcurrentHashManager<K, O> implements Serializable {
 
-    private static final long serialVersionUID = SerialVersion.SERIAL_VERSION_UID;
+    private static final long serialVersionUID = 1L;
 
     public ConcurrentKeyedManager() {
         super();
