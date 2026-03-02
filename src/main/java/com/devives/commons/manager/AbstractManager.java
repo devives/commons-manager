@@ -415,7 +415,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                         throw e;
                     }
                 } catch (Throwable e) {
-                    adapter.destroyObject(result);
+                    adapter.destroyObject(newObject);
                     throw e;
                 }
                 onEntryAdded(entry);
