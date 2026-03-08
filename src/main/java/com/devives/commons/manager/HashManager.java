@@ -54,7 +54,7 @@ public class HashManager<K, O> extends AbstractManager<K, O> implements Serializ
                 if (item != null) {
                     list.add(item);
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 exceptionList.add(new ManagerException("Error while removing key = '" + key + "'", e));
             }
         });
@@ -69,7 +69,7 @@ public class HashManager<K, O> extends AbstractManager<K, O> implements Serializ
             try {
                 // The write lock will set in doRemove().
                 doRemove(key);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 exceptionList.add(new ManagerException("Error while removing key = '" + key + "'", e));
             }
         });
