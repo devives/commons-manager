@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class ConcurrentHashManagerTest extends HashManagerTest {
@@ -34,6 +35,18 @@ public class ConcurrentHashManagerTest extends HashManagerTest {
     @Override
     protected <K, O> Manager<K, O> newManager(ManagedAdapter<O> defaultAdapter) {
         return new ConcurrentHashManager<>(defaultAdapter);
+    }
+
+    @Override
+    protected <K, O> Manager<K, O> newTrackingManager(AtomicInteger gotCounter) {
+        return new ConcurrentHashManager<K, O>() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            protected void onEntryGot(Entry<O> entry) {
+                gotCounter.incrementAndGet();
+            }
+        };
     }
 
     @Nested

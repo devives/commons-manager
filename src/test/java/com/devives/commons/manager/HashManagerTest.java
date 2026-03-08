@@ -24,6 +24,7 @@ import org.mockito.Mockito;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class HashManagerTest {
@@ -75,6 +76,21 @@ public class HashManagerTest {
             manager.remove("Item1");
             Assertions.assertFalse(manager.containsKey("Item1"));
         });
+    }
+
+    @Test
+    public void containsKey_presentItem_doNotCallOnEntryGot() throws Exception {
+        final AtomicInteger gotCounter = new AtomicInteger();
+        final Manager<String, SimpleTestItem> manager = newTrackingManager(gotCounter);
+        try {
+            manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            gotCounter.set(0);
+
+            Assertions.assertTrue(manager.containsKey("Item1"));
+            Assertions.assertEquals(0, gotCounter.get());
+        } finally {
+            manager.clear();
+        }
     }
 
     @Test
@@ -152,6 +168,25 @@ public class HashManagerTest {
 
             Assertions.assertFalse(manager.values().contains(null));
         });
+    }
+
+    @Test
+    public void forEach_presentItem_doNotCallOnEntryGot() throws Exception {
+        final AtomicInteger gotCounter = new AtomicInteger();
+        final Manager<String, SimpleTestItem> manager = newTrackingManager(gotCounter);
+        try {
+            manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            gotCounter.set(0);
+
+            manager.forEach((key, value) -> {
+                Assertions.assertEquals("Item1", key);
+                Assertions.assertNotNull(value);
+            });
+
+            Assertions.assertEquals(0, gotCounter.get());
+        } finally {
+            manager.clear();
+        }
     }
 
     @Test
@@ -317,6 +352,17 @@ public class HashManagerTest {
 
     protected <K, O> Manager<K, O> newManager(ManagedAdapter<O> defaultAdapter) {
         return new HashManager<>(defaultAdapter);
+    }
+
+    protected <K, O> Manager<K, O> newTrackingManager(AtomicInteger gotCounter) {
+        return new HashManager<K, O>() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            protected void onEntryGot(Entry<O> entry) {
+                gotCounter.incrementAndGet();
+            }
+        };
     }
 
     protected void forManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {

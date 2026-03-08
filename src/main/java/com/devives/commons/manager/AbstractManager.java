@@ -21,6 +21,7 @@ import com.devives.commons.lang.ExceptionUtils;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -56,7 +57,19 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     @Override
     public boolean containsKey(K key) {
-        return getIfPresent(key) != null;
+        Objects.requireNonNull(key);
+        return doGetIfPresent(key, false) != null;
+    }
+
+    @Override
+    public void forEach(BiConsumer<? super K, ? super O> action) {
+        Objects.requireNonNull(action);
+        keySet().forEach((k) -> {
+            O v = doGetIfPresent(k, false);
+            if (v != null) {
+                action.accept(k, v);
+            }
+        });
     }
 
     @Override
@@ -152,7 +165,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
     @Override
     public O getIfPresent(K key) {
         Objects.requireNonNull(key);
-        return doGetIfPresent(key);
+        return doGetIfPresent(key, true);
     }
 
     @Override
@@ -282,7 +295,13 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
         }
     }
 
-    protected final O doGetIfPresent(K key) {
+    /**
+     *
+     * @param key    ключ объекта
+     * @param notify флаг, указывает на необходимость вызова внутреннего события {@link #onEntryGot(Entry)}.
+     * @return найденный объект или null.
+     */
+    protected final O doGetIfPresent(K key, boolean notify) {
         O result = null;
         // Optimistically get entry without lock.
         final Entry<O> entry = internalGetEntryIfPresent(key);
@@ -293,7 +312,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
                 try {
                     result = entry.getObject();
                     // If object non set, it's equals entry not present.
-                    if (result != null) {
+                    if (notify && result != null) {
                         onEntryGot(entry);
                     }
                 } finally {

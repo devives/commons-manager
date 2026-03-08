@@ -18,7 +18,6 @@ package com.devives.commons.manager;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
@@ -226,15 +225,7 @@ public interface Manager<K, O> {
      *
      * @param action action
      */
-    default void forEach(BiConsumer<? super K, ? super O> action) {
-        Objects.requireNonNull(action);
-        keySet().forEach((k) -> {
-            O v = getIfPresent(k);
-            if (v != null) {
-                action.accept(k, v);
-            }
-        });
-    }
+    void forEach(BiConsumer<? super K, ? super O> action);
 
     interface LockSource<K> {
         Lock acquire(K key);
