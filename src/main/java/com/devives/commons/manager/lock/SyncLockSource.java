@@ -35,14 +35,19 @@ public final class SyncLockSource<K> extends AbstractLockSource<K> implements Se
         private long threadId_ = 0;
 
         private synchronized void lock() {
+            final Thread currentThread = Thread.currentThread();
             try {
-                long curThreadId = Thread.currentThread().getId();
+                long curThreadId = currentThread.getId();
                 while (locked_ > 0 && curThreadId != threadId_) {
                     this.wait();
                 }
                 threadId_ = curThreadId;
                 locked_++;
             } catch (InterruptedException e) {
+                // Восстанавливаю флаг Thread.currentThread().isInterrupted()
+                // На случай, если кто-то обработает InterruptedException как Exception и, не обратив внимание
+                // на тип InterruptedException продолжит выполнение программы в текущем потоке.
+                currentThread.interrupt();
                 throw ExceptionUtils.asUnchecked(e);
             }
         }
@@ -50,7 +55,10 @@ public final class SyncLockSource<K> extends AbstractLockSource<K> implements Se
         private synchronized void unlock() {
             if (--locked_ == 0) {
                 threadId_ = 0;
-                this.notify();
+                // Уведомляем все ожидающие потоки.
+                // Первый разморозившийся захватит блокировку, остальные опять встанут в ожидание.
+                // Это надёжнее чем, разморозить один поток вызовом notify(), и обрабатывать возможные ошибки this.wait().
+                this.notifyAll();
             }
         }
 
