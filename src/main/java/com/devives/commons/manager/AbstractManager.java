@@ -558,6 +558,8 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
      * <p>
      * At the time of invocation, a write lock is set for the record. The current thread will be able to obtain a valid object
      * by calling {@link #get(Object)} or {@link #getIfPresent(Object)}. Other threads will wait for the lock to be released.
+     * <p>
+     * An exception thrown from this method will not cancel the adding of object, but will stop the current action.
      *
      * @param entry the record
      */
@@ -569,7 +571,8 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
      * This method is called before stopping the managed object and deleting the record.
      * <p>
      * At the time of invocation, a write lock is set for the record.
-     *
+     * <p>
+     * An exception thrown from this method will stop the remove of object and stop the current action.
      * @param entry the record
      */
     protected void onEntryRemoving(Entry<O> entry) {
