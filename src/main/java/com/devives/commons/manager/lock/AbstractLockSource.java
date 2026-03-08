@@ -22,6 +22,14 @@ import com.devives.commons.manager.Manager;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Base implementation of {@link Manager.LockSource} that maintains one lock instance per manager key.
+ * <p>
+ * The source keeps locks in an internal concurrent map and removes them automatically when no thread
+ * holds a registered interest in the corresponding key anymore.
+ *
+ * @param <K> key type
+ */
 public abstract class AbstractLockSource<K> implements Manager.LockSource<K> {
 
     protected final Map<K, Manager.Lock> map_ = new ConcurrentHashMap<>();
@@ -56,6 +64,10 @@ public abstract class AbstractLockSource<K> implements Manager.LockSource<K> {
         // Do nothing.
     }
 
+    /**
+     * Base lock implementation with reference counting used by {@link AbstractLockSource} to control
+     * lock lifecycle inside the internal map.
+     */
     protected abstract class AbstractLock implements Manager.Lock, UsageCounter {
         /**
          * Number of threads with registered interest in this key.

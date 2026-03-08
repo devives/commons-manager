@@ -21,7 +21,14 @@ import com.devives.commons.manager.Manager;
 
 import java.io.Serializable;
 
-
+/**
+ * Lock source based on Java monitors and {@code wait}/{@code notifyAll}.
+ * <p>
+ * This implementation serializes both read and write access for the same key and supports reentrancy
+ * only for the owning thread. It is simpler than {@link RWLockSource}, but does not allow concurrent readers.
+ *
+ * @param <K> key type
+ */
 public final class SyncLockSource<K> extends AbstractLockSource<K> implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -30,6 +37,9 @@ public final class SyncLockSource<K> extends AbstractLockSource<K> implements Se
         return (E) new SyncLock();
     }
 
+    /**
+     * Per-key reentrant monitor lock that treats read and write operations identically.
+     */
     class SyncLock extends AbstractLock {
         private int locked_ = 0;
         private long threadId_ = 0;

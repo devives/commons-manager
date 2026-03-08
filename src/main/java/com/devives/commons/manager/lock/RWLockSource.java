@@ -21,11 +21,28 @@ import com.devives.commons.manager.Manager;
 import java.io.Serializable;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+/**
+ * Lock source backed by {@link ReentrantReadWriteLock} with one lock instance per manager key.
+ * <p>
+ * Unlike {@link SyncLockSource}, this implementation allows concurrent readers for the same key and
+ * separates read and write access, which is better suited for read-heavy manager workloads.
+ *
+ * @param <K> key type
+ */
 public final class RWLockSource<K> extends AbstractLockSource<K> implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private final boolean fair_;
 
+    /**
+     * Creates a lock source backed by {@link ReentrantReadWriteLock}.
+     *
+     * @param fair {@code true} enables fair scheduling and reduces the risk of writer starvation under sustained read load,
+     *             but usually decreases throughput and may increase average lock acquisition latency due to stricter queueing;
+     *             <p>
+     *             – {@code false} uses a non-fair policy that typically provides better (8-10x manager operations) throughput ,
+     *             but under high contention can indefinitely delay write operations such as object replacement, stop, and removal.
+     */
     public RWLockSource(boolean fair) {
         fair_ = fair;
     }
@@ -35,12 +52,15 @@ public final class RWLockSource<K> extends AbstractLockSource<K> implements Seri
         return (E) new RWLock(fair_);
     }
 
+    /**
+     * Per-key read-write lock implementation used by {@link RWLockSource}.
+     */
     final class RWLock extends AbstractLock {
         private final ReentrantReadWriteLock readWriteLock_;
 
         /**
-         *
-         * @param fair true — учитывает порядок обращений потоков, false — НЕ учитывает порядок обращений потоков.
+         * @param fair {@code true} favors predictable scheduling and lowers the probability of write starvation;
+         *             {@code false} usually gives higher throughput, but may starve waiting writers when readers arrive continuously.
          */
         protected RWLock(boolean fair) {
             readWriteLock_ = new ReentrantReadWriteLock(fair);

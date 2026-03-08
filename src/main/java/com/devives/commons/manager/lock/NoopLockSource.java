@@ -20,6 +20,13 @@ import com.devives.commons.manager.Manager;
 
 import java.io.Serializable;
 
+/**
+ * {@link Manager.LockSource} implementation that performs no synchronization.
+ * <p>
+ * Intended for single-threaded managers or scenarios where external synchronization already guarantees safety.
+ *
+ * @param <K> key type
+ */
 public final class NoopLockSource<K> implements Manager.LockSource<K>, Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -35,6 +42,9 @@ public final class NoopLockSource<K> implements Manager.LockSource<K>, Serializa
         // Do nothing.
     }
 
+    /**
+     * No-op lock implementation used by {@link NoopLockSource}.
+     */
     static class NoopLock implements Manager.Lock, Serializable {
 
         @Override
