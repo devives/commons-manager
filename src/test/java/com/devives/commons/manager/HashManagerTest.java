@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.io.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -101,6 +102,27 @@ public class HashManagerTest {
             Assertions.assertEquals(3, manager.removeAll().size());
             Assertions.assertTrue(manager.isEmpty());
         });
+    }
+
+    @Test
+    public void serializeRoundTrip_nonEmptyManager_stateRestored() throws Exception {
+        final Manager<String, Integer> manager = newManager();
+        try {
+            manager.put("1", () -> 1);
+            manager.put("2", () -> 2);
+
+            Assertions.assertTrue(manager instanceof Serializable);
+
+            @SuppressWarnings("unchecked")
+            final Manager<String, Integer> restored =
+                    (Manager<String, Integer>) serializeRoundTrip((Serializable) manager);
+
+            Assertions.assertEquals(2, restored.size());
+            Assertions.assertEquals(Integer.valueOf(1), restored.get("1"));
+            Assertions.assertEquals(Integer.valueOf(2), restored.get("2"));
+        } finally {
+            manager.clear();
+        }
     }
 
     @Test
@@ -463,6 +485,19 @@ public class HashManagerTest {
         @Override
         protected void doClear() {
             doRemoveAll();
+        }
+    }
+
+    private static <T extends Serializable> T serializeRoundTrip(T value) throws Exception {
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try (ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream)) {
+            objectOutputStream.writeObject(value);
+        }
+        try (ObjectInputStream objectInputStream =
+                     new ObjectInputStream(new ByteArrayInputStream(outputStream.toByteArray()))) {
+            @SuppressWarnings("unchecked")
+            final T result = (T) objectInputStream.readObject();
+            return result;
         }
     }
 

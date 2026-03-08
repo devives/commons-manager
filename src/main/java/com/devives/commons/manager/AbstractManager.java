@@ -31,8 +31,10 @@ import java.util.function.Supplier;
  * @param <O> type of managed object
  * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
  */
-public abstract class AbstractManager<K, O> implements Manager<K, O> {
-    private final Map<K, Entry<O>> entryMap_;
+public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializable {
+    private static final long serialVersionUID = 1L;
+
+    final Map<K, Entry<O>> entryMap_;
     private final LockSource lockSource_;
     private final ManagedAdapter<O> defaultAdapter_;
     /**
@@ -621,7 +623,8 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      *
      * @param <O> type of managed object
      */
-    protected final static class ObjectAndAdapter<O> {
+    protected final static class ObjectAndAdapter<O> implements Serializable {
+        private static final long serialVersionUID = 1L;
 
         public final O object;
         public final ManagedAdapter<O> adapter;
