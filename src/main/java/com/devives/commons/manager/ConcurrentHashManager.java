@@ -21,9 +21,9 @@ import com.devives.commons.manager.lock.AbstractLockSource;
 import com.devives.commons.manager.lock.RWLockSource;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * Thread-safe concurrent implementation of {@link Manager}.
@@ -83,6 +83,70 @@ public class ConcurrentHashManager<K, O> extends AbstractManager<K, O> implement
             }
         });
         ExceptionUtils.throwCollected(exceptionList);
+    }
+
+    @Override
+    protected Collection<O> createValuesCollection(Supplier<Collection<Entry<O>>> valuesSupplier) {
+        return new ValuesCollection<>(valuesSupplier);
+    }
+
+    protected static class ValuesCollection<O> extends AbstractManager.ValuesCollection<O> {
+
+        public ValuesCollection(Supplier<Collection<Entry<O>>> valuesSupplier) {
+            super(valuesSupplier);
+        }
+
+        @Override
+        public Iterator<O> iterator() {
+            return new ValuesIterator<O>(values().iterator());
+        }
+
+        /**
+         * Итератор гарантирует not-null значения при переборе.
+         * <pre>{@code
+         * manager.values().forEach((v) -> Assertions.assertNotNull(v));
+         * }</pre>
+         *
+         * @param <O> тип элемента коллекции.
+         */
+        private static class ValuesIterator<O> implements Iterator<O> {
+            private final Iterator<Entry<O>> iterator_;
+            private O nextValue_;
+
+            public ValuesIterator(Iterator<Entry<O>> iterator) {
+                iterator_ = Objects.requireNonNull(iterator);
+                fillNextValue();
+            }
+
+            @Override
+            public boolean hasNext() {
+                return nextValue_ != null;
+            }
+
+            @Override
+            public O next() {
+                if (nextValue_ == null) {
+                    throw new NoSuchElementException();
+                }
+                final O value = nextValue_;
+                nextValue_ = null;
+                // Keep one-element look-ahead to match ConcurrentHashMap iterator behavior.
+                fillNextValue();
+                return value;
+            }
+
+            private void fillNextValue() {
+                while (nextValue_ == null && iterator_.hasNext()) {
+                    Entry<O> entry = iterator_.next();
+                    if (entry != null) {
+                        O value = entry.getObject();
+                        if (value != null) {
+                            nextValue_ = value;
+                        }
+                    }
+                }
+            }
+        }
     }
 
 }

@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Thread-safe concurrent implementation of {@link Manager}.
@@ -34,7 +35,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     private final Map<K, Entry<O>> entryMap_;
     private final LockSource lockSource_;
     private final ManagedAdapter<O> defaultAdapter_;
-    private transient volatile Collection<O> values;
+    /**
+     * Done similarly to java.util.concurrent.ConcurrentHashMap#values.
+     */
+    private transient Collection<O> values;
 
     protected AbstractManager(Map<K, Entry<O>> entryMap, LockSource lockSource) {
         entryMap_ = Objects.requireNonNull(entryMap, "entryMap");
@@ -59,53 +63,73 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     }
 
     /**
-     * Return unmodifiable collection of values/ contained in manager.
+     * Return unmodifiable collection of values contained in manager.
      *
      * @return Unmodifiable collection of values
      */
     public Collection<O> values() {
         Collection<O> vals = values;
         if (vals == null) {
-            vals = new AbstractCollection<O>() {
-                public Iterator<O> iterator() {
-                    return new Iterator<O>() {
-                        private final Iterator<Entry<O>> i = entryMap_.values().iterator();
-                        private volatile O nextValue;
-
-                        public boolean hasNext() {
-                            for (; ; ) {
-                                boolean hasNext = i.hasNext();
-                                nextValue = hasNext ? i.next().getObject() : null;
-                                if (hasNext && nextValue != null) {
-                                    return true;
-                                } else if (nextValue == null) {
-                                    return false;
-                                }
-                            }
-                        }
-
-                        public O next() {
-                            return nextValue;
-                        }
-
-                    };
-                }
-
-                public int size() {
-                    return entryMap_.values().size();
-                }
-
-                public boolean isEmpty() {
-                    return entryMap_.values().isEmpty();
-                }
-
-                public boolean contains(Object v) {
-                    throw new UnsupportedOperationException("Contains is not supported by manager values iterator.");
-                }
-            };
+            vals = Collections.unmodifiableCollection(createValuesCollection(entryMap_::values));
             values = vals;
         }
-        return Collections.unmodifiableCollection(vals);
+        return vals;
+    }
+
+    protected Collection<O> createValuesCollection(Supplier<Collection<Entry<O>>> valuesSupplier) {
+        return new ValuesCollection<>(valuesSupplier);
+    }
+
+    protected static class ValuesCollection<O> extends AbstractCollection<O> {
+
+        private final Supplier<Collection<Entry<O>>> valuesSupplier_;
+
+        public ValuesCollection(Supplier<Collection<Entry<O>>> valuesSupplier) {
+            valuesSupplier_ = Objects.requireNonNull(valuesSupplier);
+        }
+
+        protected Collection<Entry<O>> values() {
+            return valuesSupplier_.get();
+        }
+
+        @Override
+        public Iterator<O> iterator() {
+            return new ValuesIterator<>(values().iterator());
+        }
+
+        @Override
+        public int size() {
+            return values().size();
+        }
+
+        @Override
+        public boolean contains(Object v) {
+            if (v == null) {
+                return false;
+            }
+            for (O value : this) {
+                if (v.equals(value)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static class ValuesIterator<O> implements Iterator<O> {
+            private final Iterator<Entry<O>> iterator_;
+
+            public ValuesIterator(Iterator<Entry<O>> iterator) {
+                iterator_ = Objects.requireNonNull(iterator);
+            }
+
+            public boolean hasNext() {
+                return iterator_.hasNext();
+            }
+
+            public O next() {
+                return iterator_.next().getObject();
+            }
+        }
     }
 
 
@@ -625,13 +649,13 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
             return objectAndAdapter_;
         }
 
-        public ObjectAndAdapter<O> initObjectAndAdapter(O object, ManagedAdapter<O> adapter) {
+        private ObjectAndAdapter<O> initObjectAndAdapter(O object, ManagedAdapter<O> adapter) {
             final ObjectAndAdapter<O> objectAndAdapter = new ObjectAndAdapter<O>(object, adapter);
             objectAndAdapter_ = objectAndAdapter;
             return objectAndAdapter;
         }
 
-        public void clearObjectAndAdapter() {
+        private void clearObjectAndAdapter() {
             objectAndAdapter_ = null;
         }
 

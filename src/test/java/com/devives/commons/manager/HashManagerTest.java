@@ -18,8 +18,12 @@ package com.devives.commons.manager;
 
 import com.devives.commons.lang.function.FailableConsumer;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class HashManagerTest {
 
@@ -100,13 +104,31 @@ public class HashManagerTest {
     }
 
     @Test
-    public void values_areEquals() throws Exception {
+    public void values_contains_existingValue_true() throws Exception {
+        forManager(manager -> {
+            final SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            manager.computeIfAbsent("Item2", SimpleTestItem::new);
+
+            Assertions.assertTrue(manager.values().contains(item1));
+        });
+    }
+
+    @Test
+    public void values_contains_missingValue_false() throws Exception {
         forManager(manager -> {
             manager.computeIfAbsent("Item1", SimpleTestItem::new);
             manager.computeIfAbsent("Item2", SimpleTestItem::new);
-            manager.computeIfAbsent("Item3", SimpleTestItem::new);
-            Assertions.assertFalse(manager.values().isEmpty());
-            Assertions.assertEquals(3, manager.values().size());
+
+            Assertions.assertFalse(manager.values().contains(new SimpleTestItem()));
+        });
+    }
+
+    @Test
+    public void values_contains_null_false() throws Exception {
+        forManager(manager -> {
+            manager.computeIfAbsent("Item1", SimpleTestItem::new);
+
+            Assertions.assertFalse(manager.values().contains(null));
         });
     }
 
@@ -125,6 +147,148 @@ public class HashManagerTest {
         });
     }
 
+    /**
+     * Тесты итератора коллекции {@link Manager#values()}.
+     */
+    @Nested
+    protected class ValuesIteratorTest {
+
+        @Test
+        public void next_onEmpty_throwNoSuchElementException() throws Exception {
+            Manager<String, Integer> map = new ConcurrentHashManager<>();
+            Assertions.assertThrows(NoSuchElementException.class, () -> map.values().iterator().next());
+        }
+
+        @Test
+        public void next_oneElement_expectedValue() throws Exception {
+            Manager<String, Integer> map = new ConcurrentHashManager<>();
+            map.put("1", () -> 1);
+            Iterator<Integer> iterator = map.values().iterator();
+            Assertions.assertTrue(iterator.hasNext());
+            Assertions.assertEquals(1, iterator.next());
+        }
+
+        @Test
+        public void nextAfterClear_expectedValue() throws Exception {
+            Manager<String, Integer> map = new ConcurrentHashManager<>();
+            map.put("1", () -> 1);
+            Iterator<Integer> iterator = map.values().iterator();
+            Assertions.assertEquals(true, iterator.hasNext());
+            map.clear();
+            Assertions.assertTrue(map.isEmpty());
+            Assertions.assertTrue(iterator.hasNext());
+            Assertions.assertEquals(1, iterator.next());
+            Assertions.assertFalse(iterator.hasNext());
+        }
+
+
+        @Test
+        public void values_nonEmptyManager_expectedState() throws Exception {
+            forManager(manager -> {
+                manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                manager.computeIfAbsent("Item2", SimpleTestItem::new);
+                manager.computeIfAbsent("Item3", SimpleTestItem::new);
+                Assertions.assertFalse(manager.values().isEmpty());
+                Assertions.assertEquals(3, manager.values().size());
+            });
+        }
+
+        @Test
+        public void nextOnEmpty_throwNoSuchElementException() throws Exception {
+            forManager(manager -> {
+                final Iterator<SimpleTestItem> iterator = manager.values().iterator();
+                Assertions.assertThrows(NoSuchElementException.class, iterator::next);
+            });
+        }
+
+        @Test
+        public void nextWithoutHasNext_returnAllValuesAndThenThrow() throws Exception {
+            forManager(manager -> {
+                final SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                final SimpleTestItem item2 = manager.computeIfAbsent("Item2", SimpleTestItem::new);
+                final Iterator<SimpleTestItem> iterator = manager.values().iterator();
+
+                final SimpleTestItem value1 = iterator.next();
+                final SimpleTestItem value2 = iterator.next();
+                final Set<SimpleTestItem> values = new HashSet<>(Arrays.asList(value1, value2));
+
+                Assertions.assertEquals(2, values.size());
+                Assertions.assertTrue(values.contains(item1));
+                Assertions.assertTrue(values.contains(item2));
+                Assertions.assertThrows(NoSuchElementException.class, iterator::next);
+            });
+        }
+
+        @Test
+        public void hasNext_isIdempotent() throws Exception {
+            forManager(manager -> {
+                manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                manager.computeIfAbsent("Item2", SimpleTestItem::new);
+                final Iterator<SimpleTestItem> iterator = manager.values().iterator();
+
+                Assertions.assertTrue(iterator.hasNext());
+                Assertions.assertTrue(iterator.hasNext());
+                Assertions.assertNotNull(iterator.next());
+                Assertions.assertNotNull(iterator.next());
+                Assertions.assertFalse(iterator.hasNext());
+            });
+        }
+
+        @Test
+        public void next_untilExhausted_returnValuesAndThenThrowNoSuchElementException() throws Exception {
+            forManager(manager -> {
+                manager.computeIfAbsent("1", SimpleTestItem::new);
+                manager.computeIfAbsent("2", SimpleTestItem::new);
+                manager.computeIfAbsent("3", SimpleTestItem::new);
+                Iterator<SimpleTestItem> iterator = manager.values().iterator();
+                Assertions.assertNotNull(iterator.next());
+                Assertions.assertNotNull(iterator.next());
+                Assertions.assertNotNull(iterator.next());
+                Assertions.assertThrows(NoSuchElementException.class, iterator::next);
+            });
+        }
+
+        /**
+         * Проверки теста зависят от реализации менеджера.
+         */
+        @Test
+        public void next_afterManagerModification_expectedBehavior() throws Exception {
+            forManager(manager -> {
+                manager.computeIfAbsent("0", SimpleTestItem::new);
+                manager.computeIfAbsent("1", SimpleTestItem::new);
+                manager.computeIfAbsent("2", SimpleTestItem::new);
+                List<SimpleTestItem> list = manager.values().stream().collect(Collectors.toList());
+                Iterator<SimpleTestItem> iterator = manager.values().iterator();
+                Assertions.assertEquals(list.get(0), iterator.next());
+                manager.remove("1");
+                Assertions.assertThrows(ConcurrentModificationException.class, iterator::next);
+            });
+        }
+
+        @Test
+        public void next_afterRemovedEntry_skipMissingValueAndContinueIteration() throws Exception {
+            final OrderedMapManager<String, SimpleTestItem> manager = new OrderedMapManager<>();
+            try {
+                final SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                final SimpleTestItem item2 = manager.computeIfAbsent("Item2", SimpleTestItem::new);
+                final SimpleTestItem item3 = manager.computeIfAbsent("Item3", SimpleTestItem::new);
+
+                manager.remove("Item2");
+
+                final List<SimpleTestItem> values = new ArrayList<>();
+                manager.values().forEach(values::add);
+
+                Assertions.assertEquals(2, values.size());
+                Assertions.assertTrue(values.contains(item1));
+                Assertions.assertFalse(values.contains(item2));
+                Assertions.assertTrue(values.contains(item3));
+            } finally {
+                manager.clear();
+            }
+        }
+
+    }
+
     protected <K, O> Manager<K, O> newManager() {
         return new HashManager<>();
     }
@@ -133,7 +297,7 @@ public class HashManagerTest {
         return new HashManager<>(defaultAdapter);
     }
 
-    private void forManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {
+    protected void forManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {
         Manager<String, SimpleTestItem> manager = newManager();
         try {
             consumer.accept(manager);
@@ -272,7 +436,37 @@ public class HashManagerTest {
         }
     }
 
-    private static final class SimpleTestItem {
+    private static final class OrderedMapManager<K, O> extends AbstractManager<K, O> {
+        private static final long serialVersionUID = 1L;
+
+        private OrderedMapManager() {
+            super(new LinkedHashMap<>(), new com.devives.commons.manager.lock.NoopLockSource<K>());
+        }
+
+        @Override
+        protected List<O> doRemoveAll() {
+            final List<O> list = new ArrayList<>();
+            final List<K> keys = new ArrayList<>(keySet());
+            keys.forEach(key -> {
+                try {
+                    final O item = doRemove(key);
+                    if (item != null) {
+                        list.add(item);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            return list;
+        }
+
+        @Override
+        protected void doClear() {
+            doRemoveAll();
+        }
+    }
+
+    static final class SimpleTestItem {
 
     }
 

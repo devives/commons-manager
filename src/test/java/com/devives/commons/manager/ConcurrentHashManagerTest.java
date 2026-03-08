@@ -16,6 +16,14 @@
  */
 package com.devives.commons.manager;
 
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import java.util.Iterator;
+import java.util.List;
+import java.util.stream.Collectors;
+
 public class ConcurrentHashManagerTest extends HashManagerTest {
 
     @Override
@@ -26,5 +34,27 @@ public class ConcurrentHashManagerTest extends HashManagerTest {
     @Override
     protected <K, O> Manager<K, O> newManager(ManagedAdapter<O> defaultAdapter) {
         return new ConcurrentHashManager<>(defaultAdapter);
+    }
+
+    @Nested
+    protected class ValuesIteratorTest extends HashManagerTest.ValuesIteratorTest {
+
+        @Test
+        @Override
+        public void next_afterManagerModification_expectedBehavior() throws Exception {
+            forManager(manager -> {
+                manager.computeIfAbsent("0", SimpleTestItem::new);
+                manager.computeIfAbsent("1", SimpleTestItem::new);
+                manager.computeIfAbsent("2", SimpleTestItem::new);
+                List<SimpleTestItem> list = manager.values().stream().collect(Collectors.toList());
+                Iterator<SimpleTestItem> iterator = manager.values().iterator();
+                Assertions.assertEquals(list.get(0), iterator.next());
+                manager.remove("1");
+                Assertions.assertEquals(list.get(1), iterator.next());
+                Assertions.assertEquals(list.get(2), iterator.next());
+                Assertions.assertFalse(iterator.hasNext());
+            });
+        }
+
     }
 }
