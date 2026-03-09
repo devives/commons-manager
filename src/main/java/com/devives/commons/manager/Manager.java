@@ -207,7 +207,7 @@ public interface Manager<K, O> {
     Collection<O> values();
 
     /**
-     * Returns <tt>true</tt> if this manages contains no objects.
+     * Returns <code>true</code> if this manages contains no objects.
      *
      * @return {@code true} if manager is empty, else {@code false}.
      */

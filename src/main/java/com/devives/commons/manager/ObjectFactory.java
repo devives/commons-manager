@@ -25,9 +25,9 @@ package com.devives.commons.manager;
 public interface ObjectFactory<O> {
 
     /**
-     * Creates a new instance of class <tt>&lt;O&gt;</tt>.
+     * Creates a new instance of class <code>&lt;O&gt;</code>.
      *
-     * <h3>Notes</h3>
+     * <p><strong>Notes.</strong></p>
      * The method has no arguments, to allow the default constructor to be used as a factory.
      * <pre>{@code
      * String key = "Item1";
@@ -40,7 +40,7 @@ public interface ObjectFactory<O> {
      * SimpleTestItem item1 = manager.computeIfAbsent(key, () -> new SimpleTestItem(key, manager));
      * }</pre>
      *
-     * @return new instance of <tt>&lt;O&gt;</tt>.
+     * @return new instance of <code>&lt;O&gt;</code>.
      * @throws Exception if creation failed.
      */
     O createObject() throws Exception;

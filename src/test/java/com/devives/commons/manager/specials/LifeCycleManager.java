@@ -54,7 +54,7 @@ public class LifeCycleManager<O extends LifeCycle> extends SynchronizedCloseable
     }
 
     /**
-     * Creates a new instance of class <tt>&lt;O&gt;</tt>.
+     * Creates a new instance of class <code>&lt;O&gt;</code>.
      *
      * @param factory factory of managed objects.
      * @return new instance of managed object.
