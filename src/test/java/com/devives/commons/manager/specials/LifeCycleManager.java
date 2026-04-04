@@ -16,8 +16,7 @@
  */
 package com.devives.commons.manager.specials;
 
-import com.devives.commons.lifecycle.LifeCycle;
-import com.devives.commons.lifecycle.SynchronizedCloseableAbst;
+import com.devives.commons.lang.SynchronizedCloseableAbst;
 import com.devives.commons.manager.*;
 
 import java.io.Serializable;

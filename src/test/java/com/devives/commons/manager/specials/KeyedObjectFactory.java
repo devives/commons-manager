@@ -16,7 +16,7 @@
  */
 package com.devives.commons.manager.specials;
 
-import com.devives.commons.lifecycle.LifeCycle;
+import com.devives.commons.manager.LifeCycle;
 import com.devives.commons.manager.ManagedAdapter;
 
 public interface KeyedObjectFactory<K, O extends LifeCycle, M> extends ManagedAdapter<O> {

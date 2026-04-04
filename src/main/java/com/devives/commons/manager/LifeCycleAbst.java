@@ -14,33 +14,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager.specials;
+package com.devives.commons.manager;
 
-import com.devives.commons.lang.function.FailableConsumer;
-import com.devives.commons.manager.LifeCycle;
-import com.devives.commons.manager.LifeCycleAbst;
+import com.devives.commons.publisher.Publisher;
+import com.devives.commons.publisher.Publishers;
+import com.devives.commons.state.State;
+import com.devives.commons.state.StateHolder;
+import com.devives.commons.state.StateHolderImpl;
 
-import java.util.Objects;
+public abstract class LifeCycleAbst<SELF extends LifeCycle, LISTENER extends LifeCycle.Listener<SELF>>
+        extends LifeCycleBaseAbst<SELF, LISTENER> {
 
-/**
- * Implementation of {@link LifeCycle}.
- *
- * @param <SELF> self type.
- */
-public abstract class AbstractManaged<SELF extends LifeCycle> extends LifeCycleAbst implements AutoCloseable {
-
-    private final FailableConsumer<SELF> removeCallback_;
-
-    public AbstractManaged(FailableConsumer<SELF> removeCallback) {
-        removeCallback_ = Objects.requireNonNull(removeCallback);
+    public LifeCycleAbst() {
+        this(States.STOPPED);
     }
 
-    @Override
-    public final void close() throws Exception {
-        onClose();
+    public LifeCycleAbst(State initialState) {
+        this(new StateHolderImpl(initialState),
+                Publishers.<LISTENER>builder().setIndependentDelivery().build());
     }
 
-    protected void onClose() throws Exception {
-        removeCallback_.accept((SELF) this);
+    public LifeCycleAbst(StateHolder stateHolder, Publisher<LISTENER> publisher) {
+        super(stateHolder, publisher);
     }
+
 }

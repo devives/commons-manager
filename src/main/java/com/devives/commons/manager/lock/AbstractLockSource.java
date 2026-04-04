@@ -16,8 +16,8 @@
  */
 package com.devives.commons.manager.lock;
 
-import com.devives.commons.lifecycle.UsageCounter;
 import com.devives.commons.manager.Manager;
+import com.devives.commons.util.usage.UsageCounter;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

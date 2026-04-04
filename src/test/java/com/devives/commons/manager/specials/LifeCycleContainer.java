@@ -16,8 +16,8 @@
  */
 package com.devives.commons.manager.specials;
 
-import com.devives.commons.lifecycle.LifeCycle;
-import com.devives.commons.lifecycle.LifeCycleAbst;
+import com.devives.commons.manager.LifeCycle;
+import com.devives.commons.manager.LifeCycleAbst;
 
 import java.util.LinkedHashSet;
 import java.util.Objects;
