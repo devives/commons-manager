@@ -508,7 +508,7 @@ public class HashManagerTest {
         private static final long serialVersionUID = 1L;
 
         private OrderedMapManager() {
-            super(new LinkedHashMap<>(), new com.devives.commons.manager.lock.NoopLockSource<K>());
+            super(new LinkedHashMap<>());
         }
 
         @Override

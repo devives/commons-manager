@@ -47,24 +47,29 @@ public class TheDescendantManagerTest {
 
     private static class TestCloseableItemManager extends ConcurrentHashManager<String, TestCloseableItem> {
         private static final long serialVersionUID = 1L;
-        private final ConcurrentMap<String, TestCloseableItem> additionalIndex_ = new ConcurrentHashMap<>();
+        private final ConcurrentMap<String, TestCloseableItem> additionalIndex_;
 
         public TestCloseableItemManager() {
-            super();
+            this(new ConcurrentHashMap<>());
+        }
+
+        private TestCloseableItemManager(ConcurrentMap<String, TestCloseableItem> additionalIndex) {
+            super(new Manager.Listener<String, TestCloseableItem>() {
+                @Override
+                public void onObjectCreated(String key, TestCloseableItem object) {
+                    additionalIndex.put(object.getAdditionalField(), object);
+                }
+
+                @Override
+                public void onObjectDestroying(TestCloseableItem object) {
+                    additionalIndex.remove(object.getAdditionalField());
+                }
+            });
+            additionalIndex_ = additionalIndex;
         }
 
         public TestCloseableItem getByAdditionalField(String additionalField) {
             return additionalIndex_.get(additionalField);
-        }
-
-        @Override
-        protected void onObjectCreated(String key, TestCloseableItem object) throws Exception {
-            additionalIndex_.put(object.getAdditionalField(), object);
-        }
-
-        @Override
-        protected void onObjectDestroying(TestCloseableItem object) throws Exception {
-            additionalIndex_.remove(object.getAdditionalField());
         }
 
     }

@@ -18,6 +18,7 @@ package com.devives.commons.manager;
 
 
 import com.devives.commons.lang.ExceptionUtils;
+import com.devives.commons.listener.ListenersBuilder;
 import com.devives.commons.publisher.Publisher;
 import com.devives.commons.publisher.Publishers;
 
@@ -43,19 +44,19 @@ public class UsageCountingManager<K, O> implements Serializable {
 
     public UsageCountingManager() {
         this(new InternalManager<K, O>(Publishers
-                .<Listener>builder()
-                .listeners(b -> b.setSynchronized())
+                .<UsageCountingManager.Listener<O>>builder()
+                .listeners(ListenersBuilder::setSynchronized)
                 .build()));
     }
 
     public UsageCountingManager(ManagedAdapter<O> defaultAdapter) {
         this(new InternalManager<K, O>(Publishers
-                .<Listener>builder()
-                .listeners(b -> b.setSynchronized())
+                .<UsageCountingManager.Listener<O>>builder()
+                .listeners(ListenersBuilder::setSynchronized)
                 .build(), defaultAdapter));
     }
 
-    public UsageCountingManager(Publisher<Listener> publisher, ManagedAdapter<O> defaultAdapter) {
+    public UsageCountingManager(Publisher<UsageCountingManager.Listener<O>> publisher, ManagedAdapter<O> defaultAdapter) {
         this(new InternalManager<K, O>(publisher, defaultAdapter));
     }
 
@@ -244,7 +245,7 @@ public class UsageCountingManager<K, O> implements Serializable {
      *
      * @param listener слушатель.
      */
-    public void addListener(Listener listener) {
+    public void addListener(UsageCountingManager.Listener listener) {
         internalManager_.addListener(listener);
     }
 
@@ -253,7 +254,7 @@ public class UsageCountingManager<K, O> implements Serializable {
      *
      * @param listener слушатель.
      */
-    public void removeListener(Listener listener) {
+    public void removeListener(UsageCountingManager.Listener listener) {
         internalManager_.removeListener(listener);
     }
 
@@ -282,13 +283,13 @@ public class UsageCountingManager<K, O> implements Serializable {
     protected static class InternalManager<K, O> extends ConcurrentHashManager<K, O> {
         private static final long serialVersionUID = 1L;
         private volatile boolean removeUnusedObjects_ = true;
-        private final Publisher<Listener> publisher_;
+        private final Publisher<UsageCountingManager.Listener<O>> publisher_;
 
-        public InternalManager(Publisher<Listener> publisher) {
+        public InternalManager(Publisher<UsageCountingManager.Listener<O>> publisher) {
             publisher_ = Objects.requireNonNull(publisher, "publisher");
         }
 
-        public InternalManager(Publisher<Listener> publisher, ManagedAdapter<O> defaultAdapter) {
+        public InternalManager(Publisher<UsageCountingManager.Listener<O>> publisher, ManagedAdapter<O> defaultAdapter) {
             super(defaultAdapter);
             publisher_ = Objects.requireNonNull(publisher, "publisher");
         }
@@ -301,16 +302,17 @@ public class UsageCountingManager<K, O> implements Serializable {
             removeUnusedObjects_ = removeUnusedObjects;
         }
 
-        public void addListener(Listener listener) {
+        public void addListener(UsageCountingManager.Listener<O> listener) {
             publisher_.getListeners().add(listener);
         }
 
-        public void removeListener(Listener listener) {
+        public void removeListener(UsageCountingManager.Listener<O> listener) {
             publisher_.getListeners().remove(listener);
         }
 
         @Override
-        protected <E extends Entry<?>> E newEntry() {
+        @SuppressWarnings("unchecked")
+        protected <E extends Entry<O>> E newEntry() {
             return (E) new CountingEntry<O>();
         }
 

@@ -25,6 +25,9 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
+import static com.devives.commons.manager.Manager.noopListener;
+import static com.devives.commons.manager.Manager.noopManagedAdapter;
+
 /**
  * Thread-safe concurrent implementation of {@link Manager}.
  * <p>
@@ -39,19 +42,35 @@ public class ConcurrentHashManager<K, O> extends AbstractManager<K, O> implement
     private static final long serialVersionUID = 1L;
 
     public ConcurrentHashManager() {
-        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false));
+        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), noopManagedAdapter(), noopListener());
+    }
+
+    public ConcurrentHashManager(Listener<K, O> listener) {
+        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), noopManagedAdapter(), listener);
     }
 
     public ConcurrentHashManager(ManagedAdapter<O> defaultAdapter) {
-        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), defaultAdapter);
+        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), defaultAdapter, noopListener());
+    }
+
+    public ConcurrentHashManager(ManagedAdapter<O> defaultAdapter, Listener<K, O> listener) {
+        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), defaultAdapter, listener);
     }
 
     public ConcurrentHashManager(AbstractLockSource<K> lockSource) {
-        super(new ConcurrentHashMap<>(), lockSource);
+        super(new ConcurrentHashMap<>(), lockSource, noopManagedAdapter(), noopListener());
+    }
+
+    public ConcurrentHashManager(AbstractLockSource<K> lockSource, Listener<K, O> listener) {
+        super(new ConcurrentHashMap<>(), lockSource, noopManagedAdapter(), listener);
     }
 
     public ConcurrentHashManager(AbstractLockSource<K> lockSource, ManagedAdapter<O> defaultAdapter) {
-        super(new ConcurrentHashMap<>(), lockSource, defaultAdapter);
+        super(new ConcurrentHashMap<>(), lockSource, defaultAdapter, noopListener());
+    }
+
+    protected ConcurrentHashManager(AbstractLockSource<K> lockSource, ManagedAdapter<O> defaultAdapter, Listener<K, O> listener) {
+        super(new ConcurrentHashMap<>(), lockSource, defaultAdapter, listener);
     }
 
     protected final List<O> doRemoveAll() {

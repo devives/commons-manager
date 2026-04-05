@@ -26,6 +26,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static com.devives.commons.manager.Manager.*;
+
 /**
  * Абстрактная реализация менеджера объектов с жизненным циклом: создание, запуск, остановка, уничтожение.
  *
@@ -36,24 +38,30 @@ import java.util.function.Supplier;
 public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializable {
     private static final long serialVersionUID = 1L;
 
-    final Map<K, Entry<O>> entryMap_;
+    private final Map<K, Entry<O>> entryMap_;
     private final LockSource<K> lockSource_;
     private final ManagedAdapter<O> defaultAdapter_;
+    private final Listener<K, O> listener_;
     /**
      * Done similarly to java.util.concurrent.ConcurrentHashMap#values.
      */
     private transient Collection<O> values;
 
-    protected AbstractManager(Map<K, Entry<O>> entryMap, LockSource<K> lockSource) {
-        entryMap_ = Objects.requireNonNull(entryMap, "entryMap");
-        lockSource_ = Objects.requireNonNull(lockSource, "entryLockSource");
-        defaultAdapter_ = new NoopManagedAdapter();
+    protected AbstractManager(Map<K, Entry<O>> entryMap) {
+        this(entryMap,
+                noopLockSource(),
+                noopManagedAdapter(),
+                noopListener());
     }
 
-    protected AbstractManager(Map<K, Entry<O>> entryMap, LockSource<K> lockSource, ManagedAdapter<O> defaultAdapter) {
+    protected AbstractManager(Map<K, Entry<O>> entryMap,
+                              LockSource<K> lockSource,
+                              ManagedAdapter<O> defaultAdapter,
+                              Listener<K, O> listener) {
         entryMap_ = Objects.requireNonNull(entryMap, "entryMap");
         lockSource_ = Objects.requireNonNull(lockSource, "entryLockSource");
         defaultAdapter_ = Objects.requireNonNull(defaultAdapter, "defaultAdapter");
+        listener_ = Objects.requireNonNull(listener, "listener");
     }
 
     @Override
@@ -274,7 +282,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
         return entryMap_.size();
     }
 
-    protected final O doGet(K key) {
+    protected O doGet(K key) {
         final Lock entryLock = acquireLock(key);
         try {
             entryLock.lockRead();
@@ -302,7 +310,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
      * @param notify флаг, указывает на необходимость вызова внутреннего события {@link #onEntryGot(Entry)}.
      * @return найденный объект или null.
      */
-    protected final O doGetIfPresent(K key, boolean notify) {
+    protected O doGetIfPresent(K key, boolean notify) {
         O result = null;
         // Optimistically get entry without lock.
         final Entry<O> entry = internalGetEntryIfPresent(key);
@@ -361,6 +369,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     private ManagedAdapter<O> getDefaultAdapter() {
         return Objects.requireNonNull(defaultAdapter_, "The default managed adapter not set. It's must be passed in to manager constructor.");
+    }
+
+    protected final Listener<K, O> getListener() {
+        return listener_;
     }
 
     /**
@@ -477,12 +489,12 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
         }).run();
     }
 
-    protected final <E extends Entry<?>> E doCreateEntry() {
+    protected final <E extends Entry<O>> E doCreateEntry() {
         return Objects.requireNonNull(newEntry(), String.format("The `%s#newEntry()` method did not return an instance.", getClass().getCanonicalName()));
     }
 
     @SuppressWarnings("unchecked")
-    protected <E extends Entry<?>> E newEntry() {
+    protected <E extends Entry<O>> E newEntry() {
         return (E) new Entry();
     }
 
@@ -623,70 +635,38 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     protected final O doObjectCreate(ObjectFactory<O> factory, K key) throws Exception {
         O object = factory.createObject();
-        onObjectCreated(key, object);
+        getListener().onObjectCreated(key, object);
         return object;
-    }
-
-    protected void onObjectCreated(K key, O object) throws Exception {
-
     }
 
     protected final void doObjectStart(O object, ManagedAdapter<O> adapter) throws Exception {
         try {
-            onObjectStarting(object);
+            getListener().onObjectStarting(object);
             adapter.startObject(object);
-            onObjectStarted(object);
+            getListener().onObjectStarted(object);
         } catch (Throwable th) {
             doObjectFailure(object, adapter, th);
         }
     }
 
-    protected void onObjectStarting(O object) throws Exception {
-
-    }
-
-    protected void onObjectStarted(O object) throws Exception {
-
-    }
-
     protected final void doObjectFailure(O object, ManagedAdapter<O> adapter, Throwable throwable) throws Exception {
-        onObjectFailure(object, throwable);
-    }
-
-    protected void onObjectFailure(O object, Throwable throwable) throws Exception {
-
+        getListener().onObjectFailure(object, throwable);
     }
 
     protected final void doObjectStop(O object, ManagedAdapter<O> adapter) throws Exception {
         try {
-            onObjectStopping(object);
+            getListener().onObjectStopping(object);
             adapter.stopObject(object);
-            onObjectStopped(object);
+            getListener().onObjectStopped(object);
         } catch (Throwable th) {
             doObjectFailure(object, adapter, th);
         }
     }
 
-    protected void onObjectStopping(O object) throws Exception {
-
-    }
-
-    protected void onObjectStopped(O object) throws Exception {
-
-    }
-
     protected final void doObjectDestroy(O object, ManagedAdapter<O> adapter) throws Exception {
-        onObjectDestroying(object);
+        getListener().onObjectDestroying(object);
         adapter.destroyObject(object);
-        onObjectDestroyed(object);
-    }
-
-    protected void onObjectDestroying(O object) throws Exception {
-
-    }
-
-    protected void onObjectDestroyed(O object) throws Exception {
-
+        getListener().onObjectDestroyed(object);
     }
 
     /**

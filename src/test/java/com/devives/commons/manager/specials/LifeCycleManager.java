@@ -35,22 +35,17 @@ public class LifeCycleManager<O extends LifeCycle> extends SynchronizedCloseable
 
     private static final long serialVersionUID = 1L;
     private final Map<IdentityWrapper<O>, Object> object2keyMap_ = new ConcurrentHashMap<>();
-    private final Manager<Object, O> internalManager_ = new InternalManager();
-
-    private final class InternalManager extends ConcurrentHashManager<Object, O> {
-        private static final long serialVersionUID = 1L;
-
+    private final Manager<Object, O> internalManager_ = new ConcurrentHashManager<>(new Manager.Listener<Object, O>() {
         @Override
-        protected void onObjectCreated(Object key, O object) throws Exception {
+        public void onObjectCreated(Object key, O object) {
             object2keyMap_.put(new IdentityWrapper<>(object), key);
         }
 
         @Override
-        protected void onObjectDestroying(O object) throws Exception {
+        public void onObjectDestroying(O object) {
             object2keyMap_.remove(new IdentityWrapper<>(object));
         }
-
-    }
+    });
 
     /**
      * Creates a new instance of class <code>&lt;O&gt;</code>.

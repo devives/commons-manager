@@ -16,6 +16,8 @@
  */
 package com.devives.commons.manager;
 
+import com.devives.commons.manager.lock.NoopLockSource;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -227,6 +229,47 @@ public interface Manager<K, O> {
      */
     void forEach(BiConsumer<? super K, ? super O> action);
 
+    /**
+     * Listener of managed object lifecycle events.
+     *
+     * @param <K> type of key
+     * @param <O> type of managed object
+     */
+    interface Listener<K, O> extends java.util.EventListener {
+
+        default void onObjectCreated(K key, O object) throws Exception {
+
+        }
+
+        default void onObjectStarting(O object) throws Exception {
+
+        }
+
+        default void onObjectStarted(O object) throws Exception {
+
+        }
+
+        default void onObjectFailure(O object, Throwable throwable) throws Exception {
+
+        }
+
+        default void onObjectStopping(O object) throws Exception {
+
+        }
+
+        default void onObjectStopped(O object) throws Exception {
+
+        }
+
+        default void onObjectDestroying(O object) throws Exception {
+
+        }
+
+        default void onObjectDestroyed(O object) throws Exception {
+
+        }
+    }
+
     interface LockSource<K> {
         Lock acquire(K key);
 
@@ -246,6 +289,18 @@ public interface Manager<K, O> {
         void upgradeLock();
 
         void downgradeLock();
+    }
+
+    static <K> LockSource<K> noopLockSource() {
+        return new NoopLockSource<K>();
+    }
+
+    static <O> ManagedAdapter<O> noopManagedAdapter() {
+        return new NoopManagedAdapter<O>();
+    }
+
+    static <K, O> Listener<K, O> noopListener() {
+        return new NoopManagerListener<>();
     }
 
 }

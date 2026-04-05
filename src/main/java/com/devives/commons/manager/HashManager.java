@@ -16,11 +16,10 @@
  */
 package com.devives.commons.manager;
 
-import com.devives.commons.manager.lock.NoopLockSource;
-
 import java.io.Serializable;
 import java.util.HashMap;
 
+import static com.devives.commons.manager.Manager.*;
 /**
  * Single-thread implementation of {@link Manager}.
  *
@@ -33,11 +32,19 @@ public class HashManager<K, O> extends AbstractManager<K, O> implements Serializ
     private static final long serialVersionUID = 1L;
 
     public HashManager() {
-        super(new HashMap<>(), new NoopLockSource<K>());
+        super(new HashMap<>());
+    }
+
+    public HashManager(Listener<K, O> listener) {
+        super(new HashMap<>(), noopLockSource(), noopManagedAdapter(), listener);
     }
 
     public HashManager(ManagedAdapter<O> defaultAdapter) {
-        super(new HashMap<>(), new NoopLockSource<K>(), defaultAdapter);
+        super(new HashMap<>(), noopLockSource(), defaultAdapter, noopListener());
+    }
+
+    public HashManager(ManagedAdapter<O> defaultAdapter, Listener<K, O> listener) {
+        super(new HashMap<>(), noopLockSource(), defaultAdapter, listener);
     }
 
 }
