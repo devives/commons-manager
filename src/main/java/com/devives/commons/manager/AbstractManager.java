@@ -17,6 +17,7 @@
 package com.devives.commons.manager;
 
 import com.devives.commons.lang.ExceptionUtils;
+import com.devives.commons.lang.call.Try;
 
 import java.io.Serializable;
 import java.util.*;
@@ -26,7 +27,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Thread-safe concurrent implementation of {@link Manager}.
+ * Абстрактная реализация менеджера объектов с жизненным циклом: создание, запуск, остановка, уничтожение.
  *
  * @param <K> type of key
  * @param <O> type of managed object
@@ -36,20 +37,20 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
     private static final long serialVersionUID = 1L;
 
     final Map<K, Entry<O>> entryMap_;
-    private final LockSource lockSource_;
+    private final LockSource<K> lockSource_;
     private final ManagedAdapter<O> defaultAdapter_;
     /**
      * Done similarly to java.util.concurrent.ConcurrentHashMap#values.
      */
     private transient Collection<O> values;
 
-    protected AbstractManager(Map<K, Entry<O>> entryMap, LockSource lockSource) {
+    protected AbstractManager(Map<K, Entry<O>> entryMap, LockSource<K> lockSource) {
         entryMap_ = Objects.requireNonNull(entryMap, "entryMap");
         lockSource_ = Objects.requireNonNull(lockSource, "entryLockSource");
         defaultAdapter_ = new NoopManagedAdapter();
     }
 
-    protected AbstractManager(Map<K, Entry<O>> entryMap, LockSource lockSource, ManagedAdapter<O> defaultAdapter) {
+    protected AbstractManager(Map<K, Entry<O>> entryMap, LockSource<K> lockSource, ManagedAdapter<O> defaultAdapter) {
         entryMap_ = Objects.requireNonNull(entryMap, "entryMap");
         lockSource_ = Objects.requireNonNull(lockSource, "entryLockSource");
         defaultAdapter_ = Objects.requireNonNull(defaultAdapter, "defaultAdapter");
@@ -283,7 +284,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
                 if (entry != null) {
                     result = entry.getObject();
                     if (result != null) {
-                        onEntryGot(entry);
+                        doEntryGot(entry);
                     }
                 }
                 return result;
@@ -313,7 +314,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
                     result = entry.getObject();
                     // If object non set, it's equals entry not present.
                     if (notify && result != null) {
-                        onEntryGot(entry);
+                        doEntryGot(entry);
                     }
                 } finally {
                     entryLock.unlockRead();
@@ -325,50 +326,30 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
         return result;
     }
 
-    protected final O doComputeIfAbsent(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) throws Exception {
+    protected final O doComputeIfAbsent(final K key, final ObjectFactory<O> factory, final ManagedAdapter<O> adapter) throws Exception {
         O result = null;
         final Lock entryLock = acquireLock(key);
         try {
             entryLock.lockRead();
             try {
-                ObjectAndAdapter<O> objectAndAdapter;
                 Entry<O> entry = internalGetEntryIfPresent(key);
                 if (entry == null) {
                     entryLock.upgradeLock();
                     try {
-                        entry = Optional.ofNullable(internalGetEntryIfPresent(key)).orElseGet(this::newEntry);
-                        objectAndAdapter = entry.getObjectAndAdapter();
-                        if (objectAndAdapter == null) {
-                            result = doObjectCreate(factory, key);
-                            try {
-                                objectAndAdapter = entry.initObjectAndAdapter(result, adapter);
-                                internalPutEntry(key, entry);
-                                try {
-                                    doObjectStart(objectAndAdapter);
-                                } catch (Throwable e) {
-                                    try {
-                                        doObjectFailure(objectAndAdapter, e);
-                                    } finally {
-                                        internalRemoveEntry(key);
-                                        entry.clearObjectAndAdapter();
-                                    }
-                                    throw e;
-                                }
-                            } catch (Throwable e) {
-                                adapter.destroyObject(result);
-                                throw e;
-                            }
-                            onEntryAdded(entry);
+                        entry = Optional.ofNullable(internalGetEntryIfPresent(key)).orElseGet(this::doCreateEntry);
+                        assert entry != null;
+                        if (entry.getObjectAndAdapter() == null) {
+                            doInitializeEntry(key, entry, factory, adapter);
                         }
+                        result = entry.getObjectAndAdapter().object;
                     } finally {
                         // Downgrade lock.
                         entryLock.downgradeLock();
                     }
                 } else {
-                    objectAndAdapter = entry.getObjectAndAdapter();
+                    doEntryGot(entry);
+                    result = entry.getObjectAndAdapter().object;
                 }
-                onEntryGot(entry);
-                result = objectAndAdapter.object;
             } finally {
                 entryLock.unlockRead();
             }
@@ -411,6 +392,14 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
      * @throws NullPointerException if the specified key is null
      * @see ConcurrentHashMap#remove(Object)
      */
+    protected final Entry<O> internalRemoveAndClearEntry(final K k) {
+        Entry<O> entry = internalRemoveEntry(k);
+        if (entry != null) {
+            entry.clearObjectAndAdapter();
+        }
+        return entry;
+    }
+
     protected final Entry<O> internalRemoveEntry(final K k) {
         return entryMap_.remove(k);
     }
@@ -420,50 +409,16 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
         final Lock entryLock = acquireLock(key);
         try {
             entryLock.lockWrite();
-            ObjectAndAdapter<O> objectAndAdapter;
             try {
                 Entry<O> entry = internalGetEntryIfPresent(key);
                 if (entry != null) {
-                    objectAndAdapter = entry.getObjectAndAdapter();
-                    if (objectAndAdapter != null) {
-                        onEntryRemoving(entry);
-                        try {
-                            try {
-                                doObjectStop(objectAndAdapter);
-                            } catch (Throwable th) {
-                                doObjectFailure(objectAndAdapter, th);
-                                throw th;
-                            } finally {
-                                doObjectDestroy(objectAndAdapter);
-                            }
-                        } finally {
-                            internalRemoveEntry(key);
-                            entry.clearObjectAndAdapter();
-                        }
-                        result = objectAndAdapter.object;
+                    if (entry.getObjectAndAdapter() != null) {
+                        doDeinitializeEntry(key, entry);
                     }
                 }
-                entry = Optional.ofNullable(entry).orElseGet(this::newEntry);
-                final O newObject = doObjectCreate(factory, key);
-                try {
-                    objectAndAdapter = entry.initObjectAndAdapter(newObject, adapter);
-                    internalPutEntry(key, entry);
-                    try {
-                        doObjectStart(objectAndAdapter);
-                    } catch (Throwable e) {
-                        try {
-                            doObjectFailure(objectAndAdapter, e);
-                        } finally {
-                            internalRemoveEntry(key);
-                            entry.clearObjectAndAdapter();
-                        }
-                        throw e;
-                    }
-                } catch (Throwable e) {
-                    adapter.destroyObject(newObject);
-                    throw e;
-                }
-                onEntryAdded(entry);
+                entry = Optional.ofNullable(entry).orElseGet(this::doCreateEntry);
+                doInitializeEntry(key, entry, factory, adapter);
+                result = entry.getObjectAndAdapter().object;
             } finally {
                 entryLock.unlockWrite();
             }
@@ -473,12 +428,82 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
         return result;
     }
 
+    /**
+     * Creates an object, binds it to the entry, publishes the entry in the manager map,
+     * starts the object, and notifies entry lifecycle callbacks.
+     * If any step fails, performs rollback of the already completed initialization stages.
+     *
+     * @param key     entry key
+     * @param entry   entry to initialize
+     * @param factory object factory
+     * @param adapter managed object adapter
+     * @throws Exception if creation or any subsequent initialization stage fails
+     */
+    protected final void doInitializeEntry(K key, Entry<O> entry, ObjectFactory<O> factory, ManagedAdapter<O> adapter) throws Exception {
+        final O object = doObjectCreate(factory, key);
+        Try.runnable(() -> {
+            entry.initObjectAndAdapter(object, adapter);
+            // Помещаю Entry в карту до вызова #doObjectStart(), что бы текущий поток, при
+            // рекурсивном вызове текущего метода, мог получить ссылку на этот Entry.
+            internalPutEntry(key, entry);
+            Try.runnable(() -> {
+                doObjectStart(object, adapter);
+                Try.runnable(() -> {
+                    doEntryAdded(entry);
+                }).onCatch((th) -> {
+                    doObjectStop(object, adapter);
+                    throw th;
+                }).run();
+            }).onCatch((th) -> {
+                internalRemoveAndClearEntry(key);
+                throw th;
+            }).run();
+        }).onCatch((th) -> {
+            doObjectDestroy(object, adapter);
+            throw th;
+        }).run();
+    }
+
+    protected final void doDeinitializeEntry(K key, Entry<O> entry) throws Exception {
+        final ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
+        doEntryRemoving(entry);
+        Try.runnable(() -> {
+            doObjectStop(objectAndAdapter.object, objectAndAdapter.adapter);
+        }).doFinally(() -> {
+            ExceptionUtils.collectAndThrow(
+                    () -> internalRemoveAndClearEntry(key),
+                    () -> doObjectDestroy(objectAndAdapter.object, objectAndAdapter.adapter)
+            );
+        }).run();
+    }
+
+    protected final <E extends Entry<?>> E doCreateEntry() {
+        return Objects.requireNonNull(newEntry(), String.format("The `%s#newEntry()` method did not return an instance.", getClass().getCanonicalName()));
+    }
+
     @SuppressWarnings("unchecked")
     protected <E extends Entry<?>> E newEntry() {
         return (E) new Entry();
     }
 
-    protected final O doRemove(K key) throws Exception {
+    /**
+     * The method is called after a write lock is set.
+     * @param key   key
+     * @param entry object entry
+     * @return the removed object or {@code null}.
+     * @throws Exception when stopping of the object is failed.
+     */
+    protected final O doRemoveEntry(K key, Entry<O> entry) throws Exception {
+        O result = null;
+        final ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
+        if (objectAndAdapter != null) {
+            doDeinitializeEntry(key, entry);
+            result = objectAndAdapter.object;
+        }
+        return result;
+    }
+
+    protected O doRemove(K key) throws Exception {
         O result = null;
         Entry<O> entry = internalGetEntryIfPresent(key);
         if (entry != null) {
@@ -500,39 +525,38 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
         return result;
     }
 
-    /**
-     * The method is called after a write lock is set.
-     * @param key   key
-     * @param entry object entry
-     * @return the removed object or {@code null}.
-     * @throws Exception when stopping of the object is failed.
-     */
-    protected final O doRemoveEntry(K key, Entry<O> entry) throws Exception {
-        O result = null;
-        final ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
-        if (objectAndAdapter != null) {
-            onEntryRemoving(entry);
+    protected List<O> doRemoveAll() {
+        final List<Throwable> exceptionList = new ArrayList<>();
+        final List<O> list = new ArrayList<>();
+        final List<K> keys = new ArrayList<>(keySet());
+        keys.forEach(key -> {
             try {
-                try {
-                    doObjectStop(objectAndAdapter);
-                } catch (Throwable th) {
-                    doObjectFailure(objectAndAdapter, th);
-                    throw th;
-                } finally {
-                    doObjectDestroy(objectAndAdapter);
+                // The write lock will set in doRemove().
+                O item = doRemove(key);
+                if (item != null) {
+                    list.add(item);
                 }
-            } finally {
-                internalRemoveEntry(key);
-                entry.clearObjectAndAdapter();
+            } catch (Exception e) {
+                exceptionList.add(new ManagerException("Error while removing key = '" + key + "'", e));
             }
-            result = objectAndAdapter.object;
-        }
-        return result;
+        });
+        ExceptionUtils.throwCollected(exceptionList);
+        return list;
     }
 
-    protected abstract List<O> doRemoveAll();
-
-    protected abstract void doClear();
+    protected void doClear() {
+        final List<Throwable> exceptionList = new ArrayList<>();
+        final List<K> keys = new ArrayList<>(keySet());
+        keys.forEach(key -> {
+            try {
+                // The write lock will set in doRemove().
+                doRemove(key);
+            } catch (Exception e) {
+                exceptionList.add(new ManagerException("Error while removing key = '" + key + "'", e));
+            }
+        });
+        ExceptionUtils.throwCollected(exceptionList);
+    }
 
     protected final Lock acquireLock(K key) {
         return lockSource_.acquire(key);
@@ -540,6 +564,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     protected final void releaseLock(K key) {
         lockSource_.release(key);
+    }
+
+    protected final void doEntryGot(Entry<O> entry) {
+        onEntryGot(entry);
     }
 
     /**
@@ -554,17 +582,31 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
     }
 
     /**
+     * Вызывается после старта и добавления объекта в менеджер, но перед снятием блокировки.
+     *
+     * @param entry added {@link Entry}
+     */
+    protected final void doEntryAdded(Entry<O> entry) {
+        onEntryAdded(entry);
+    }
+
+    /**
      * This method is called after a record has been successfully created and the managed object has been started.
      * <p>
      * At the time of invocation, a write lock is set for the record. The current thread will be able to obtain a valid object
      * by calling {@link #get(Object)} or {@link #getIfPresent(Object)}. Other threads will wait for the lock to be released.
      * <p>
-     * An exception thrown from this method will not cancel the adding of object, but will stop the current action.
+     * An exception thrown from this method rolls back the newly added record, stops and destroys the managed object,
+     * and then aborts the current action.
      *
      * @param entry the record
      */
     protected void onEntryAdded(Entry<O> entry) {
 
+    }
+
+    protected final void doEntryRemoving(Entry<O> entry) {
+        onEntryRemoving(entry);
     }
 
     /**
@@ -589,10 +631,14 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     }
 
-    protected final void doObjectStart(ObjectAndAdapter<O> objectAndAdapter) throws Exception {
-        onObjectStarting(objectAndAdapter.object);
-        objectAndAdapter.adapter.startObject(objectAndAdapter.object);
-        onObjectStarted(objectAndAdapter.object);
+    protected final void doObjectStart(O object, ManagedAdapter<O> adapter) throws Exception {
+        try {
+            onObjectStarting(object);
+            adapter.startObject(object);
+            onObjectStarted(object);
+        } catch (Throwable th) {
+            doObjectFailure(object, adapter, th);
+        }
     }
 
     protected void onObjectStarting(O object) throws Exception {
@@ -603,19 +649,22 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     }
 
-    protected final void doObjectFailure(ObjectAndAdapter<O> objectAndAdapter, Throwable throwable) throws Exception {
-        onObjectFailure(objectAndAdapter.object, throwable);
-        objectAndAdapter.adapter.failureObject(objectAndAdapter.object, throwable);
+    protected final void doObjectFailure(O object, ManagedAdapter<O> adapter, Throwable throwable) throws Exception {
+        onObjectFailure(object, throwable);
     }
 
     protected void onObjectFailure(O object, Throwable throwable) throws Exception {
 
     }
 
-    protected final void doObjectStop(ObjectAndAdapter<O> objectAndAdapter) throws Exception {
-        onObjectStopping(objectAndAdapter.object);
-        objectAndAdapter.adapter.stopObject(objectAndAdapter.object);
-        onObjectStopped(objectAndAdapter.object);
+    protected final void doObjectStop(O object, ManagedAdapter<O> adapter) throws Exception {
+        try {
+            onObjectStopping(object);
+            adapter.stopObject(object);
+            onObjectStopped(object);
+        } catch (Throwable th) {
+            doObjectFailure(object, adapter, th);
+        }
     }
 
     protected void onObjectStopping(O object) throws Exception {
@@ -626,10 +675,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     }
 
-    protected final void doObjectDestroy(ObjectAndAdapter<O> objectAndAdapter) throws Exception {
-        onObjectDestroying(objectAndAdapter.object);
-        objectAndAdapter.adapter.destroyObject(objectAndAdapter.object);
-        onObjectDestroyed(objectAndAdapter.object);
+    protected final void doObjectDestroy(O object, ManagedAdapter<O> adapter) throws Exception {
+        onObjectDestroying(object);
+        adapter.destroyObject(object);
+        onObjectDestroyed(object);
     }
 
     protected void onObjectDestroying(O object) throws Exception {

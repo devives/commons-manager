@@ -16,13 +16,10 @@
  */
 package com.devives.commons.manager;
 
-import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.manager.lock.NoopLockSource;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
 /**
  * Single-thread implementation of {@link Manager}.
@@ -41,39 +38,6 @@ public class HashManager<K, O> extends AbstractManager<K, O> implements Serializ
 
     public HashManager(ManagedAdapter<O> defaultAdapter) {
         super(new HashMap<>(), new NoopLockSource<K>(), defaultAdapter);
-    }
-
-    protected final List<O> doRemoveAll() {
-        final List<Throwable> exceptionList = new ArrayList<>();
-        final List<O> list = new ArrayList<>();
-        final List<K> keys = new ArrayList<>(keySet());
-        keys.forEach(key -> {
-            try {
-                // The write lock will set in doRemove().
-                O item = doRemove(key);
-                if (item != null) {
-                    list.add(item);
-                }
-            } catch (Exception e) {
-                exceptionList.add(new ManagerException("Error while removing key = '" + key + "'", e));
-            }
-        });
-        ExceptionUtils.throwCollected(exceptionList);
-        return list;
-    }
-
-    protected final void doClear() {
-        final List<Throwable> exceptionList = new ArrayList<>();
-        final List<K> keys = new ArrayList<>(keySet());
-        keys.forEach(key -> {
-            try {
-                // The write lock will set in doRemove().
-                doRemove(key);
-            } catch (Exception e) {
-                exceptionList.add(new ManagerException("Error while removing key = '" + key + "'", e));
-            }
-        });
-        ExceptionUtils.throwCollected(exceptionList);
     }
 
 }

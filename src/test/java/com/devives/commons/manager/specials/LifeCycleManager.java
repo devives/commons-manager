@@ -72,11 +72,6 @@ public class LifeCycleManager<O extends LifeCycle> extends SynchronizedCloseable
             }
 
             @Override
-            public void failureObject(O object, Throwable throwable) {
-                factory.failureObject(object, throwable);
-            }
-
-            @Override
             public void stopObject(O object) throws Exception {
                 factory.stopObject(object);
             }

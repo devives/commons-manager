@@ -52,6 +52,17 @@ public class UsageCountingManagerTest {
     }
 
     @Test
+    public void setRemoveUnusedObjects_true_areEquals() throws Exception {
+        forTestManager(manager -> {
+            manager.setRemoveUnusedObjects(true);
+            SimpleTestItem item1 = manager.acquire("Item1", SimpleTestItem::new);
+            manager.release("Item1");
+            SimpleTestItem item1_1 = manager.acquire("Item1", SimpleTestItem::new);
+            Assertions.assertNotEquals(item1, item1_1);
+        });
+    }
+
+    @Test
     public void isEmpty_afterRelease_true() throws Exception {
         forTestManager(manager -> {
             manager.acquire("Item1", SimpleTestItem::new);

@@ -27,10 +27,6 @@ public interface ManagedAdapter<O> {
 
     void startObject(O object) throws Exception;
 
-    default void failureObject(O object, Throwable throwable) {
-
-    }
-
     void stopObject(O object) throws Exception;
 
     default void destroyObject(O object) throws Exception {

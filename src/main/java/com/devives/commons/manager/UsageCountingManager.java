@@ -316,6 +316,7 @@ public class UsageCountingManager<K, O> implements Serializable {
 
         @Override
         protected void onEntryAdded(Entry<O> entry) {
+            ((CountingEntry<O>) entry).incUsages();
             publisher_.publish(listener -> listener.afterAddItem(entry.getObject()));
         }
 
