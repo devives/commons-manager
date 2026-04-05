@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.lifecycle;
 
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.call.Try;
@@ -24,28 +24,27 @@ import com.devives.commons.state.Stateful;
 
 import java.util.Objects;
 
-abstract class LifeCycleBaseAbst<SELF extends LifeCycle, LISTENER extends LifeCycle.Listener<SELF>>
-        extends Stateful
-        implements LifeCycle<SELF, LISTENER> {
+abstract class AbstractLifeCycleBase extends Stateful implements LifeCycle {
 
-    private final Publisher<LISTENER> publisher_;
+    private static final long serialVersionUID = 1L;
+    private final Publisher<Listener> publisher_;
 
-    protected LifeCycleBaseAbst(StateHolder stateHolder, Publisher<LISTENER> publisher) {
+    protected AbstractLifeCycleBase(StateHolder stateHolder, Publisher<Listener> publisher) {
         super(stateHolder);
         publisher_ = Objects.requireNonNull(publisher);
     }
 
-    protected Publisher<LISTENER> getPublisher() {
+    protected Publisher<Listener> getPublisher() {
         return publisher_;
     }
 
     @Override
-    public void addListener(LISTENER listener) {
+    public void addListener(Listener listener) {
         publisher_.getListeners().add(Objects.requireNonNull(listener));
     }
 
     @Override
-    public void removeListener(LISTENER listener) {
+    public void removeListener(Listener listener) {
         publisher_.getListeners().remove(Objects.requireNonNull(listener));
     }
 
@@ -105,7 +104,7 @@ abstract class LifeCycleBaseAbst<SELF extends LifeCycle, LISTENER extends LifeCy
     private void beginStart() {
         getStateHolder().set(States.STARTING);
         onStarting();
-        publisher_.publish(listener -> listener.onStarting((SELF) this));
+        publisher_.publish(listener -> listener.onStarting(this));
     }
 
     private void doStart() throws Exception {
@@ -115,7 +114,7 @@ abstract class LifeCycleBaseAbst<SELF extends LifeCycle, LISTENER extends LifeCy
     private void endStart() {
         getStateHolder().set(States.STARTED);
         onStarted();
-        publisher_.publish(listener -> listener.onStarted((SELF) this));
+        publisher_.publish(listener -> listener.onStarted(this));
     }
 
     protected void onStarting() {
@@ -131,7 +130,7 @@ abstract class LifeCycleBaseAbst<SELF extends LifeCycle, LISTENER extends LifeCy
     private void beginStop() {
         getStateHolder().set(States.STOPPING);
         onStopping();
-        publisher_.publish(listener -> listener.onStopping((SELF) this));
+        publisher_.publish(listener -> listener.onStopping(this));
     }
 
     private void doStop() throws Exception {
@@ -141,7 +140,7 @@ abstract class LifeCycleBaseAbst<SELF extends LifeCycle, LISTENER extends LifeCy
     private void endStop() {
         getStateHolder().set(States.STOPPED);
         onStopped();
-        publisher_.publish(listener -> listener.onStopped((SELF) this));
+        publisher_.publish(listener -> listener.onStopped(this));
     }
 
     protected void onStopping() {
@@ -158,7 +157,7 @@ abstract class LifeCycleBaseAbst<SELF extends LifeCycle, LISTENER extends LifeCy
         getStateHolder().set(States.FAILED);
         ExceptionUtils.collectAndThrow(
                 () -> onFailed(th),
-                () -> publisher_.publish(listener -> listener.onFailure((SELF) this, th))
+                () -> publisher_.publish(listener -> listener.onFailure(this, th))
         );
     }
 

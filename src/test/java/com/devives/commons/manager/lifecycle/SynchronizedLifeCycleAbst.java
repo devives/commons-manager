@@ -14,8 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.lifecycle;
 
+import com.devives.commons.listener.ListenersBuilder;
 import com.devives.commons.publisher.Publisher;
 import com.devives.commons.publisher.Publishers;
 import com.devives.commons.state.State;
@@ -23,8 +24,7 @@ import com.devives.commons.state.StateHolder;
 import com.devives.commons.state.SynchronizedStateHolder;
 import com.devives.commons.state.SynchronizedStateHolderImpl;
 
-public abstract class SynchronizedLifeCycleAbst<SELF extends LifeCycle, LISTENER extends LifeCycle.Listener<SELF>>
-        extends LifeCycleBaseAbst<SELF, LISTENER> {
+public abstract class SynchronizedLifeCycleAbst extends AbstractLifeCycleBase {
 
     public SynchronizedLifeCycleAbst() {
         this(States.STOPPED);
@@ -32,10 +32,10 @@ public abstract class SynchronizedLifeCycleAbst<SELF extends LifeCycle, LISTENER
 
     public SynchronizedLifeCycleAbst(State initialState) {
         this(new SynchronizedStateHolderImpl(initialState),
-                Publishers.<LISTENER>builder().listeners(builder -> builder.setSynchronized()).setIndependentDelivery().build());
+                Publishers.<Listener>builder().listeners(ListenersBuilder::setSynchronized).setIndependentDelivery().build());
     }
 
-    public SynchronizedLifeCycleAbst(StateHolder stateHolder, Publisher<LISTENER> publisher) {
+    public SynchronizedLifeCycleAbst(StateHolder stateHolder, Publisher<Listener> publisher) {
         super(stateHolder, publisher);
     }
 

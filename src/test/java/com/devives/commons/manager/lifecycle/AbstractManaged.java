@@ -14,15 +14,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager.specials;
+package com.devives.commons.manager.lifecycle;
 
-import com.devives.commons.manager.LifeCycle;
-import com.devives.commons.manager.ManagedAdapter;
+import com.devives.commons.lang.function.FailableConsumer;
 
-public interface KeyedObjectFactory<K, O extends LifeCycle, M> extends ManagedAdapter<O> {
+import java.util.Objects;
 
-    K buildKey();
+/**
+ * Implementation of {@link LifeCycle}.
+ *
+ * @param <SELF> self type.
+ */
+public abstract class AbstractManaged<SELF extends LifeCycle> extends AbstractLifeCycle implements AutoCloseable {
 
-    O createObject(K key, M manager) throws Exception;
+    private final FailableConsumer<SELF> removeCallback_;
 
+    public AbstractManaged(FailableConsumer<SELF> removeCallback) {
+        removeCallback_ = Objects.requireNonNull(removeCallback);
+    }
+
+    @Override
+    public final void close() throws Exception {
+        onClose();
+    }
+
+    protected void onClose() throws Exception {
+        removeCallback_.accept((SELF) this);
+    }
 }

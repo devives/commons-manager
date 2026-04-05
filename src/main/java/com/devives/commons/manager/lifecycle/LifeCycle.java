@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.lifecycle;
 
 import com.devives.commons.state.State;
 import com.devives.commons.state.StateFactory;
@@ -22,7 +22,7 @@ import com.devives.commons.state.StateFactory;
 /**
  * Interface of an object with a life cycle.
  */
-public interface LifeCycle<SELF extends LifeCycle, LISTENER extends LifeCycle.Listener<SELF>> {
+public interface LifeCycle {
 
     /**
      * @return true if the component is starting.
@@ -77,33 +77,33 @@ public interface LifeCycle<SELF extends LifeCycle, LISTENER extends LifeCycle.Li
      */
     void stop() throws Exception;
 
-    void addListener(LISTENER listener);
+    void addListener(LifeCycle.Listener listener);
 
-    void removeListener(LISTENER listener);
+    void removeListener(LifeCycle.Listener listener);
 
     /**
      * Listener.
      * A listener for Lifecycle events.
      */
-    interface Listener<O> extends java.util.EventListener {
+    interface Listener extends java.util.EventListener {
 
-        default void onStarting(O object) {
-
-        }
-
-        default void onStarted(O object) {
+        default void onStarting(LifeCycle object) {
 
         }
 
-        default void onFailure(O object, Throwable throwable) {
+        default void onStarted(LifeCycle object) {
 
         }
 
-        default void onStopping(O object) {
+        default void onFailure(LifeCycle object, Throwable throwable) {
 
         }
 
-        default void onStopped(O object) {
+        default void onStopping(LifeCycle object) {
+
+        }
+
+        default void onStopped(LifeCycle object) {
 
         }
     }

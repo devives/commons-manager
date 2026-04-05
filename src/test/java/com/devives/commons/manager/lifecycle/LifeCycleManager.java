@@ -14,12 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager.specials;
+package com.devives.commons.manager.lifecycle;
 
-import com.devives.commons.lang.SynchronizedCloseableAbst;
+import com.devives.commons.lang.CloseableAbst;
 import com.devives.commons.manager.*;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,11 +32,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @param <O> type of managed object
  */
-public class LifeCycleManager<O extends LifeCycle> extends SynchronizedCloseableAbst implements Serializable {
+final class LifeCycleManager<O extends LifeCycle> extends CloseableAbst implements Serializable {
 
     private static final long serialVersionUID = 1L;
-    private final Map<IdentityWrapper<O>, Object> object2keyMap_ = new ConcurrentHashMap<>();
-    private final Manager<Object, O> internalManager_ = new ConcurrentHashManager<>(new Manager.Listener<Object, O>() {
+    private final Map<IdentityWrapper<O>, Object> object2keyMap_ = new HashMap<>();
+    private final Manager<Object, O> internalManager_ = new HashManager<>(new Manager.Listener<Object, O>() {
         @Override
         public void onObjectCreated(Object key, O object) {
             object2keyMap_.put(new IdentityWrapper<>(object), key);
@@ -133,7 +134,6 @@ public class LifeCycleManager<O extends LifeCycle> extends SynchronizedCloseable
 
     @Override
     protected void onClose() throws Exception {
-        object2keyMap_.clear();
         internalManager_.removeAll();
     }
 

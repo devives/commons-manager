@@ -14,14 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.devives.commons.manager;
+package com.devives.commons.manager.lifecycle;
 
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.function.FailableConsumer;
 import com.devives.commons.lang.reflection.ProxyBuilder;
-import com.devives.commons.manager.specials.KeyedObjectFactory;
-import com.devives.commons.manager.specials.LifeCycleManager;
-import com.devives.commons.manager.specials.SynchronizedManagedAbst;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -173,7 +170,8 @@ public class LifeCycleManagerTest {
     /**
      *LifeCycleFactory<String, AbstractSession, ConcurrentLifeCycleManager<AbstractSession>>
      */
-    private static abstract class SessionFactoryAbst implements KeyedObjectFactory<Object, AbstractSession, LifeCycleManager<AbstractSession>> {
+    private static abstract class SessionFactoryAbst
+            implements KeyedObjectFactory<Object, AbstractSession, LifeCycleManager<AbstractSession>> {
 
         protected final String keyPrefix_;
         protected final ServerContext serverContext_;
@@ -285,6 +283,7 @@ public class LifeCycleManagerTest {
      */
     private static abstract class AbstractSession extends SynchronizedManagedAbst<AbstractSession> implements Session {
 
+        private static final long serialVersionUID = -6525641918910398844L;
         private final String id_;
         private final String secret_ = UUID.randomUUID().toString();
         protected final DataSource dataSource_;
