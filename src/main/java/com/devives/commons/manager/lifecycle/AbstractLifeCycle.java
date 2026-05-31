@@ -23,6 +23,7 @@ import com.devives.commons.state.StateHolder;
 import com.devives.commons.state.StateHolderImpl;
 
 public abstract class AbstractLifeCycle extends AbstractLifeCycleBase {
+    private static final long serialVersionUID = 1L;
 
     public AbstractLifeCycle() {
         this(States.STOPPED);

@@ -25,6 +25,7 @@ import com.devives.commons.state.SynchronizedStateHolder;
 import com.devives.commons.state.SynchronizedStateHolderImpl;
 
 public abstract class SynchronizedLifeCycleAbst extends AbstractLifeCycleBase {
+    private static final long serialVersionUID = 1L;
 
     public SynchronizedLifeCycleAbst() {
         this(States.STOPPED);

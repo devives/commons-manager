@@ -23,6 +23,8 @@ import java.util.Objects;
  * Синхронизированная реализация контейнера элементов с жизненным циклом.
  */
 public class SynchronizedLifeCycleContainer extends SynchronizedLifeCycleAbst {
+    private static final long serialVersionUID = 1L;
+
     /**
      * Содержит список управляемых элементов.
      */
