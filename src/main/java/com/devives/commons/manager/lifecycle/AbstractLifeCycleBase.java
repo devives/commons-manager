@@ -19,17 +19,18 @@ package com.devives.commons.manager.lifecycle;
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.call.Try;
 import com.devives.commons.publisher.Publisher;
+import com.devives.commons.state.State;
 import com.devives.commons.state.StateHolder;
 import com.devives.commons.state.Stateful;
 
 import java.util.Objects;
 
-abstract class AbstractLifeCycleBase extends Stateful implements LifeCycle {
+abstract class AbstractLifeCycleBase extends Stateful<State> implements LifeCycle {
 
     private static final long serialVersionUID = 1L;
     private final Publisher<Listener> publisher_;
 
-    protected AbstractLifeCycleBase(StateHolder stateHolder, Publisher<Listener> publisher) {
+    protected AbstractLifeCycleBase(StateHolder<State> stateHolder, Publisher<Listener> publisher) {
         super(stateHolder);
         publisher_ = Objects.requireNonNull(publisher);
     }

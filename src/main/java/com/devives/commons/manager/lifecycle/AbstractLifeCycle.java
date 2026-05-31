@@ -29,11 +29,11 @@ public abstract class AbstractLifeCycle extends AbstractLifeCycleBase {
     }
 
     public AbstractLifeCycle(State initialState) {
-        this(new StateHolderImpl(initialState),
+        this(new StateHolderImpl<>(initialState),
                 Publishers.<Listener>builder().setIndependentDelivery().build());
     }
 
-    public AbstractLifeCycle(StateHolder stateHolder, Publisher<Listener> publisher) {
+    public AbstractLifeCycle(StateHolder<State> stateHolder, Publisher<Listener> publisher) {
         super(stateHolder, publisher);
     }
 

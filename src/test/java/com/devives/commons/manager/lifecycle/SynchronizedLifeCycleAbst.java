@@ -31,17 +31,17 @@ public abstract class SynchronizedLifeCycleAbst extends AbstractLifeCycleBase {
     }
 
     public SynchronizedLifeCycleAbst(State initialState) {
-        this(new SynchronizedStateHolderImpl(initialState),
+        this(new SynchronizedStateHolderImpl<>(initialState),
                 Publishers.<Listener>builder().listeners(ListenersBuilder::setSynchronized).setIndependentDelivery().build());
     }
 
-    public SynchronizedLifeCycleAbst(StateHolder stateHolder, Publisher<Listener> publisher) {
+    public SynchronizedLifeCycleAbst(StateHolder<State> stateHolder, Publisher<Listener> publisher) {
         super(stateHolder, publisher);
     }
 
     @Override
-    protected SynchronizedStateHolder getStateHolder() {
-        return (SynchronizedStateHolder) super.getStateHolder();
+    protected SynchronizedStateHolder<State> getStateHolder() {
+        return (SynchronizedStateHolder<State>) super.getStateHolder();
     }
 
     @Override
