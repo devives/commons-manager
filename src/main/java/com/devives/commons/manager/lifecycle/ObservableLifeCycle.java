@@ -16,27 +16,11 @@
  */
 package com.devives.commons.manager.lifecycle;
 
-import com.devives.commons.publisher.Publisher;
-import com.devives.commons.publisher.Publishers;
-import com.devives.commons.state.State;
-import com.devives.commons.state.StateHolder;
-import com.devives.commons.state.StateHolderImpl;
+public interface ObservableLifeCycle extends LifeCycle {
 
-public abstract class AbstractLifeCycle extends LifeCycleBase {
-    private static final long serialVersionUID = 1L;
+    void addListener(Listener listener);
 
-    public AbstractLifeCycle() {
-        this(States.STOPPED);
-    }
+    void removeListener(Listener listener);
 
-    public AbstractLifeCycle(State initialState) {
-        this(new StateHolderImpl<>(initialState),
-                Publishers.<Listener>builder()
-                        .setIndependentDelivery()
-                        .build());
-    }
 
-    public AbstractLifeCycle(StateHolder<State> stateHolder, Publisher<Listener> publisher) {
-        super(stateHolder, publisher);
-    }
 }

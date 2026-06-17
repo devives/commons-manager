@@ -25,37 +25,6 @@ import com.devives.commons.state.StateFactory;
 public interface LifeCycle {
 
     /**
-     * @return true if the component is starting.
-     * @see #isStarted()
-     */
-    boolean isStarting();
-
-    /**
-     * @return true if the component has been started.
-     * @see #start()
-     * @see #isStarting()
-     */
-    boolean isStarted();
-
-    /**
-     * @return true if the component is stopping.
-     * @see #isStopped()
-     */
-    boolean isStopping();
-
-    /**
-     * @return true if the component has been stopped.
-     * @see #stop()
-     * @see #isStopping()
-     */
-    boolean isStopped();
-
-    /**
-     * @return true if the component has failed to start or has failed to stop.
-     */
-    boolean isFailed();
-
-    /**
      * Starts the component.
      *
      * @throws Exception If the component fails to start.
@@ -77,9 +46,36 @@ public interface LifeCycle {
      */
     void stop() throws Exception;
 
-    void addListener(LifeCycle.Listener listener);
+    /**
+     * @return true if the component is starting.
+     * @see #isStarted()
+     */
+    boolean isStarting();
 
-    void removeListener(LifeCycle.Listener listener);
+    /**
+     * @return true if the component has been started.
+     * @see LifeCycle#start()
+     * @see #isStarting()
+     */
+    boolean isStarted();
+
+    /**
+     * @return true if the component is stopping.
+     * @see #isStopped()
+     */
+    boolean isStopping();
+
+    /**
+     * @return true if the component has been stopped.
+     * @see LifeCycle#stop()
+     * @see #isStopping()
+     */
+    boolean isStopped();
+
+    /**
+     * @return true if the component has failed to start or has failed to stop.
+     */
+    boolean isFailed();
 
     /**
      * Listener.
@@ -109,10 +105,10 @@ public interface LifeCycle {
     }
 
     class States {
+        public static final State STARTING = StateFactory.named("STARTING");
+        public static final State STARTED = StateFactory.named("STARTED");
         public static final State STOPPING = StateFactory.named("STOPPING");
         public static final State STOPPED = StateFactory.named("STOPPED");
-        public static final State STARTED = StateFactory.named("STARTED");
-        public static final State STARTING = StateFactory.named("STARTING");
         public static final State FAILED = StateFactory.named("FAILED");
     }
 

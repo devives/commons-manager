@@ -23,7 +23,7 @@ import java.util.Collection;
  *
  * @param <T> тип элементов.
  */
-public interface LifeCycleContainer<T extends LifeCycle> extends LifeCycle {
+public interface LifeCycleContainer<T extends LifeCycle> extends LifeCycle, ObservableLifeCycle {
 
     /**
      * Добавляет элемент в контейнер.

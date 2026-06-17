@@ -25,7 +25,7 @@ import java.util.Objects;
  *
  * @param <SELF> self type.
  */
-public abstract class SynchronizedManagedAbst<SELF extends LifeCycle> extends SynchronizedLifeCycleAbst implements LifeCycle, AutoCloseable {
+public abstract class SynchronizedManagedAbst<SELF extends LifeCycle> extends AbstractSynchronizedLifeCycle implements LifeCycle, AutoCloseable {
 
     private final FailableConsumer<SELF> removeCallback_;
 

@@ -22,7 +22,7 @@ import java.util.Objects;
 /**
  * Синхронизированная реализация контейнера элементов с жизненным циклом.
  */
-public class SynchronizedLifeCycleContainer extends SynchronizedLifeCycleAbst {
+public class SynchronizedLifeCycleContainer extends AbstractSynchronizedLifeCycle {
     private static final long serialVersionUID = 1L;
 
     /**

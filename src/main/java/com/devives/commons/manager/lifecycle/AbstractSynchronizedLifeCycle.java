@@ -24,19 +24,22 @@ import com.devives.commons.state.StateHolder;
 import com.devives.commons.state.SynchronizedStateHolder;
 import com.devives.commons.state.SynchronizedStateHolderImpl;
 
-public abstract class SynchronizedLifeCycleAbst extends AbstractLifeCycleBase {
+public abstract class AbstractSynchronizedLifeCycle extends LifeCycleBase {
     private static final long serialVersionUID = 1L;
 
-    public SynchronizedLifeCycleAbst() {
+    public AbstractSynchronizedLifeCycle() {
         this(States.STOPPED);
     }
 
-    public SynchronizedLifeCycleAbst(State initialState) {
+    public AbstractSynchronizedLifeCycle(State initialState) {
         this(new SynchronizedStateHolderImpl<>(initialState),
-                Publishers.<Listener>builder().listeners(ListenersBuilder::setSynchronized).setIndependentDelivery().build());
+                Publishers.<Listener>builder()
+                        .listeners(ListenersBuilder::setSynchronized)
+                        .setIndependentDelivery()
+                        .build());
     }
 
-    public SynchronizedLifeCycleAbst(StateHolder<State> stateHolder, Publisher<Listener> publisher) {
+    public AbstractSynchronizedLifeCycle(StateHolder<State> stateHolder, Publisher<Listener> publisher) {
         super(stateHolder, publisher);
     }
 

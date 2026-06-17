@@ -17,15 +17,16 @@
 package com.devives.commons.manager.lifecycle;
 
 import com.devives.commons.lang.ExceptionUtils;
+import com.devives.commons.lang.call.Try;
 import com.devives.commons.manager.*;
 
 import java.io.Serializable;
 import java.util.*;
 
 /**
- * Синхронизированная реализация контейнера элементов с жизненным циклом.
+ * Не синхронизированная реализация контейнера элементов с жизненным циклом.
  */
-public class DefaultLifeCycleContainer<T extends LifeCycle> extends AbstractLifeCycle implements LifeCycleContainer<T> {
+public final class DefaultLifeCycleContainer<T extends LifeCycle> extends AbstractLifeCycle implements LifeCycleContainer<T> {
     private static final long serialVersionUID = 1L;
     /**
      * Содержит список управляемых элементов.
@@ -36,20 +37,23 @@ public class DefaultLifeCycleContainer<T extends LifeCycle> extends AbstractLife
      */
     private final LifeCycleManager<T> manager = new LifeCycleManager<T>();
 
-    public final void addItem(T lifeCycle) {
+    public void addItem(T lifeCycle) {
+        Objects.requireNonNull(lifeCycle, "Item cannot be null");
         if (!itemSet.add(lifeCycle)) {
             throw new IllegalArgumentException("A duplicate element in a container.");
         }
         if (isStarted()) {
-            try {
+            Try.runnable(() -> {
                 internalStartItem(lifeCycle);
-            } catch (Exception e) {
+            }).onCatch((th) -> {
                 itemSet.remove(lifeCycle);
-            }
+                throw th;
+            }).run();
         }
     }
 
-    public final void removeItem(T lifeCycle) {
+    public void removeItem(T lifeCycle) {
+        Objects.requireNonNull(lifeCycle, "Item cannot be null");
         try {
             internalStopItem(lifeCycle);
         } finally {
@@ -62,28 +66,17 @@ public class DefaultLifeCycleContainer<T extends LifeCycle> extends AbstractLife
         return Collections.unmodifiableCollection(itemSet);
     }
 
-    protected final void internalStartItem(T lifeCycle) {
+    private void internalStartItem(T lifeCycle) {
         manager.add(lifeCycle);
     }
 
-
-    protected final void internalStopItem(T lifeCycle) {
+    private void internalStopItem(T lifeCycle) {
         manager.remove(lifeCycle);
     }
 
-    @Override
-    protected void onStart() throws Exception {
-        try {
-            itemSet.forEach(this::internalStartItem);
-        } catch (Exception e) {
-            itemSet.clear();
-        }
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
-    protected void onStop() throws Exception {
-        final List<Exception> collector =  new ArrayList<>();
+    private void internalStopItems() {
+        final List<Exception> collector = new ArrayList<>();
         final LifeCycle[] array = itemSet.toArray(new LifeCycle[0]);
         for (int i = array.length - 1; i >= 0; i--) {
             try {
@@ -93,6 +86,35 @@ public class DefaultLifeCycleContainer<T extends LifeCycle> extends AbstractLife
             }
         }
         ExceptionUtils.throwCollected(collector);
+    }
+
+    private void internalStartItems() {
+        itemSet.forEach(this::internalStartItem);
+    }
+
+    @Override
+    protected void onStart() throws Exception {
+        internalStartItems();
+    }
+
+    @Override
+    protected void onStop() throws Exception {
+        internalStopItems();
+    }
+
+    @Override
+    protected void onFailure(Throwable th) {
+        internalStopItems();
+    }
+
+    @Override
+    public void addListener(Listener listener) {
+        super.addListener(listener);
+    }
+
+    @Override
+    public void removeListener(Listener listener) {
+        super.removeListener(listener);
     }
 
     private static final class LifeCycleAdapter<T extends LifeCycle> implements ManagedAdapter<T> {
