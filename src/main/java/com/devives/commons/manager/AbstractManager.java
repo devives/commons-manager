@@ -452,7 +452,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
      * @throws Exception if creation or any subsequent initialization stage fails
      */
     protected final void doInitializeEntry(K key, Entry<O> entry, ObjectFactory<O> factory, ManagedAdapter<O> adapter) throws Exception {
-        final O object = doObjectCreate(factory, key);
+        final O object = doObjectCreate(factory, adapter, key);
         Try.runnable(() -> {
             entry.initObjectAndAdapter(object, adapter);
             // Помещаю Entry в карту до вызова #doObjectStart(), что бы текущий поток, при
@@ -633,20 +633,31 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     }
 
-    protected final O doObjectCreate(ObjectFactory<O> factory, K key) throws Exception {
-        O object = factory.createObject();
-        getListener().onObjectCreated(key, object);
+    protected final O doObjectCreate(ObjectFactory<O> factory, ManagedAdapter<O> adapter, K key) throws Exception {
+        final O object = factory.createObject();
+        Try.runnable(() -> {
+            getListener().onObjectCreated(key, object);
+        }).onCatch((th) -> {
+            doObjectDestroy(object, adapter);
+            throw th;
+        }).run();
         return object;
     }
 
     protected final void doObjectStart(O object, ManagedAdapter<O> adapter) throws Exception {
-        try {
+        Try.runnable(() -> {
             getListener().onObjectStarting(object);
             adapter.startObject(object);
-            getListener().onObjectStarted(object);
-        } catch (Throwable th) {
+            Try.runnable(() -> {
+                getListener().onObjectStarted(object);
+            }).onCatch((th) -> {
+                doObjectStop(object, adapter);
+                throw th;
+            }).run();
+        }).onCatch((th) -> {
             doObjectFailure(object, adapter, th);
-        }
+            throw th;
+        }).run();
     }
 
     protected final void doObjectFailure(O object, ManagedAdapter<O> adapter, Throwable throwable) throws Exception {
@@ -654,19 +665,28 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
     }
 
     protected final void doObjectStop(O object, ManagedAdapter<O> adapter) throws Exception {
-        try {
-            getListener().onObjectStopping(object);
-            adapter.stopObject(object);
-            getListener().onObjectStopped(object);
-        } catch (Throwable th) {
+        Try.runnable(() -> {
+            ExceptionUtils.collectAndThrow(
+                    () -> getListener().onObjectStopping(object),
+                    () -> {
+                        adapter.stopObject(object);
+                        getListener().onObjectStopped(object);
+                    }
+            );
+        }).onCatch((th) -> {
             doObjectFailure(object, adapter, th);
-        }
+            throw th;
+        }).run();
     }
 
     protected final void doObjectDestroy(O object, ManagedAdapter<O> adapter) throws Exception {
-        getListener().onObjectDestroying(object);
-        adapter.destroyObject(object);
-        getListener().onObjectDestroyed(object);
+        ExceptionUtils.collectAndThrow(
+                () -> getListener().onObjectDestroying(object),
+                () -> {
+                    adapter.destroyObject(object);
+                    getListener().onObjectDestroyed(object);
+                }
+        );
     }
 
     /**
