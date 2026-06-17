@@ -16,7 +16,7 @@
  */
 package com.devives.commons.manager.lifecycle;
 
-import com.devives.commons.lang.CloseableAbst;
+import com.devives.commons.lang.AbstractCloseable;
 import com.devives.commons.manager.*;
 
 import java.io.Serializable;
@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @param <O> type of managed object
  */
-final class LifeCycleManager<O extends LifeCycle> extends CloseableAbst implements Serializable {
+final class LifeCycleManager<O extends LifeCycle> extends AbstractCloseable implements Serializable {
 
     private static final long serialVersionUID = 1L;
     private final Map<IdentityWrapper<O>, Object> object2keyMap_ = new HashMap<>();
