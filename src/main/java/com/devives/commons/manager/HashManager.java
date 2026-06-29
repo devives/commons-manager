@@ -35,16 +35,16 @@ public class HashManager<K, O> extends AbstractManager<K, O> implements Serializ
         super(new HashMap<>());
     }
 
-    public HashManager(Listener<K, O> listener) {
-        super(new HashMap<>(), noopLockSource(), noopManagedAdapter(), listener);
+    public HashManager(Hooks<K, O> lifecycleHooks) {
+        super(new HashMap<>(), noopLockSource(), noopManagedAdapter(), lifecycleHooks);
     }
 
     public HashManager(ManagedAdapter<O> defaultAdapter) {
-        super(new HashMap<>(), noopLockSource(), defaultAdapter, noopListener());
+        super(new HashMap<>(), noopLockSource(), defaultAdapter, noopHooks());
     }
 
-    public HashManager(ManagedAdapter<O> defaultAdapter, Listener<K, O> listener) {
-        super(new HashMap<>(), noopLockSource(), defaultAdapter, listener);
+    public HashManager(ManagedAdapter<O> defaultAdapter, Hooks<K, O> lifecycleHooks) {
+        super(new HashMap<>(), noopLockSource(), defaultAdapter, lifecycleHooks);
     }
 
 }

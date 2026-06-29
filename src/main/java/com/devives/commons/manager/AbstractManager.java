@@ -41,7 +41,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
     private final Map<K, Entry<O>> entryMap_;
     private final LockSource<K> lockSource_;
     private final ManagedAdapter<O> defaultAdapter_;
-    private final Listener<K, O> listener_;
+    private final Hooks<K, O> hooks_;
     /**
      * Done similarly to java.util.concurrent.ConcurrentHashMap#values.
      */
@@ -51,17 +51,17 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
         this(entryMap,
                 noopLockSource(),
                 noopManagedAdapter(),
-                noopListener());
+                noopHooks());
     }
 
     protected AbstractManager(Map<K, Entry<O>> entryMap,
                               LockSource<K> lockSource,
                               ManagedAdapter<O> defaultAdapter,
-                              Listener<K, O> listener) {
+                              Hooks<K, O> hooks) {
         entryMap_ = Objects.requireNonNull(entryMap, "entryMap");
         lockSource_ = Objects.requireNonNull(lockSource, "entryLockSource");
         defaultAdapter_ = Objects.requireNonNull(defaultAdapter, "defaultAdapter");
-        listener_ = Objects.requireNonNull(listener, "listener");
+        hooks_ = Objects.requireNonNull(hooks, "hooks");
     }
 
     @Override
@@ -371,8 +371,8 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
         return Objects.requireNonNull(defaultAdapter_, "The default managed adapter not set. It's must be passed in to manager constructor.");
     }
 
-    protected final Listener<K, O> getListener() {
-        return listener_;
+    protected final Hooks<K, O> getHooks() {
+        return hooks_;
     }
 
     /**
@@ -636,7 +636,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
     protected final O doObjectCreate(ObjectFactory<O> factory, ManagedAdapter<O> adapter, K key) throws Exception {
         final O object = factory.createObject();
         Try.runnable(() -> {
-            getListener().onObjectCreated(key, object);
+            getHooks().onObjectCreated(key, object);
         }).onCatch((th) -> {
             doObjectDestroy(object, adapter);
             throw th;
@@ -646,10 +646,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     protected final void doObjectStart(O object, ManagedAdapter<O> adapter) throws Exception {
         Try.runnable(() -> {
-            getListener().onObjectStarting(object);
+            getHooks().onObjectStarting(object);
             adapter.startObject(object);
             Try.runnable(() -> {
-                getListener().onObjectStarted(object);
+                getHooks().onObjectStarted(object);
             }).onCatch((th) -> {
                 doObjectStop(object, adapter);
                 throw th;
@@ -661,16 +661,16 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
     }
 
     protected final void doObjectFailure(O object, ManagedAdapter<O> adapter, Throwable throwable) throws Exception {
-        getListener().onObjectFailure(object, throwable);
+        getHooks().onObjectFailure(object, throwable);
     }
 
     protected final void doObjectStop(O object, ManagedAdapter<O> adapter) throws Exception {
         Try.runnable(() -> {
             ExceptionUtils.collectAndThrow(
-                    () -> getListener().onObjectStopping(object),
+                    () -> getHooks().onObjectStopping(object),
                     () -> {
                         adapter.stopObject(object);
-                        getListener().onObjectStopped(object);
+                        getHooks().onObjectStopped(object);
                     }
             );
         }).onCatch((th) -> {
@@ -681,10 +681,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     protected final void doObjectDestroy(O object, ManagedAdapter<O> adapter) throws Exception {
         ExceptionUtils.collectAndThrow(
-                () -> getListener().onObjectDestroying(object),
+                () -> getHooks().onObjectDestroying(object),
                 () -> {
                     adapter.destroyObject(object);
-                    getListener().onObjectDestroyed(object);
+                    getHooks().onObjectDestroyed(object);
                 }
         );
     }

@@ -25,7 +25,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
-import static com.devives.commons.manager.Manager.noopListener;
+import static com.devives.commons.manager.Manager.noopHooks;
 import static com.devives.commons.manager.Manager.noopManagedAdapter;
 
 /**
@@ -42,35 +42,35 @@ public class ConcurrentHashManager<K, O> extends AbstractManager<K, O> implement
     private static final long serialVersionUID = 1L;
 
     public ConcurrentHashManager() {
-        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), noopManagedAdapter(), noopListener());
+        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), noopManagedAdapter(), noopHooks());
     }
 
-    public ConcurrentHashManager(Listener<K, O> listener) {
-        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), noopManagedAdapter(), listener);
+    public ConcurrentHashManager(Hooks<K, O> lifecycleHooks) {
+        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), noopManagedAdapter(), lifecycleHooks);
     }
 
     public ConcurrentHashManager(ManagedAdapter<O> defaultAdapter) {
-        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), defaultAdapter, noopListener());
+        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), defaultAdapter, noopHooks());
     }
 
-    public ConcurrentHashManager(ManagedAdapter<O> defaultAdapter, Listener<K, O> listener) {
-        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), defaultAdapter, listener);
+    public ConcurrentHashManager(ManagedAdapter<O> defaultAdapter, Hooks<K, O> lifecycleHooks) {
+        super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), defaultAdapter, lifecycleHooks);
     }
 
     public ConcurrentHashManager(AbstractLockSource<K> lockSource) {
-        super(new ConcurrentHashMap<>(), lockSource, noopManagedAdapter(), noopListener());
+        super(new ConcurrentHashMap<>(), lockSource, noopManagedAdapter(), noopHooks());
     }
 
-    public ConcurrentHashManager(AbstractLockSource<K> lockSource, Listener<K, O> listener) {
-        super(new ConcurrentHashMap<>(), lockSource, noopManagedAdapter(), listener);
+    public ConcurrentHashManager(AbstractLockSource<K> lockSource, Hooks<K, O> lifecycleHooks) {
+        super(new ConcurrentHashMap<>(), lockSource, noopManagedAdapter(), lifecycleHooks);
     }
 
     public ConcurrentHashManager(AbstractLockSource<K> lockSource, ManagedAdapter<O> defaultAdapter) {
-        super(new ConcurrentHashMap<>(), lockSource, defaultAdapter, noopListener());
+        super(new ConcurrentHashMap<>(), lockSource, defaultAdapter, noopHooks());
     }
 
-    protected ConcurrentHashManager(AbstractLockSource<K> lockSource, ManagedAdapter<O> defaultAdapter, Listener<K, O> listener) {
-        super(new ConcurrentHashMap<>(), lockSource, defaultAdapter, listener);
+    protected ConcurrentHashManager(AbstractLockSource<K> lockSource, ManagedAdapter<O> defaultAdapter, Hooks<K, O> lifecycleHooks) {
+        super(new ConcurrentHashMap<>(), lockSource, defaultAdapter, lifecycleHooks);
     }
 
     protected final List<O> doRemoveAll() {

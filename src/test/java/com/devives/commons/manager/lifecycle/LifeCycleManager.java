@@ -36,7 +36,7 @@ final class LifeCycleManager<O extends LifeCycle> extends AbstractCloseable impl
 
     private static final long serialVersionUID = 1L;
     private final Map<IdentityWrapper<O>, Object> object2keyMap_ = new HashMap<>();
-    private final Manager<Object, O> internalManager_ = new HashManager<>(new Manager.Listener<Object, O>() {
+    private final Manager<Object, O> internalManager_ = new HashManager<>(new Manager.Hooks<Object, O>() {
         @Override
         public void onObjectCreated(Object key, O object) {
             object2keyMap_.put(new IdentityWrapper<>(object), key);

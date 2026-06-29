@@ -54,7 +54,7 @@ public class TheDescendantManagerTest {
         }
 
         private TestCloseableItemManager(ConcurrentMap<String, TestCloseableItem> additionalIndex) {
-            super(new Manager.Listener<String, TestCloseableItem>() {
+            super(new Manager.Hooks<String, TestCloseableItem>() {
                 @Override
                 public void onObjectCreated(String key, TestCloseableItem object) {
                     additionalIndex.put(object.getAdditionalField(), object);

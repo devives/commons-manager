@@ -18,6 +18,6 @@ package com.devives.commons.manager;
 
 import java.io.Serializable;
 
-final class NoopManagerListener<K, O> implements Manager.Listener<K, O>, Serializable {
+final class NoopHooks<K, O> implements Manager.Hooks<K, O>, Serializable {
     private static final long serialVersionUID = 1L;
 }

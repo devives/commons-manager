@@ -230,12 +230,12 @@ public interface Manager<K, O> {
     void forEach(BiConsumer<? super K, ? super O> action);
 
     /**
-     * Listener of managed object lifecycle events.
+     * Hook methods invoked by a manager during managed object lifecycle operations.
      *
      * @param <K> type of key
      * @param <O> type of managed object
      */
-    interface Listener<K, O> extends java.util.EventListener {
+    interface Hooks<K, O> {
 
         default void onObjectCreated(K key, O object) throws Exception {
 
@@ -299,8 +299,8 @@ public interface Manager<K, O> {
         return new NoopManagedAdapter<O>();
     }
 
-    static <K, O> Listener<K, O> noopListener() {
-        return new NoopManagerListener<>();
+    static <K, O> Hooks<K, O> noopHooks() {
+        return new NoopHooks<>();
     }
 
 }
