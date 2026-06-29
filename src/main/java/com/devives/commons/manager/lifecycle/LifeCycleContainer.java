@@ -28,7 +28,7 @@ public interface LifeCycleContainer<T extends LifeCycle> extends LifeCycle, Obse
     /**
      * Добавляет элемент в контейнер.
      * <p>
-     * Если контейнер в состоянии {@link LifeCycle.States#STARTED}, вызывает {@link LifeCycle#start()} добавляемого объекта.
+     * Если контейнер в состоянии {@link LifeCycleStates#STARTED}, вызывает {@link LifeCycle#start()} добавляемого объекта.
      *
      * @param lifeCycle добавляемый элемент
      * @throws IllegalArgumentException При повторном добавлении элемента в контейнер.

@@ -16,9 +16,6 @@
  */
 package com.devives.commons.manager.lifecycle;
 
-import com.devives.commons.state.State;
-import com.devives.commons.state.StateFactory;
-
 /**
  * Interface of an object with a life cycle.
  */
@@ -28,9 +25,9 @@ public interface LifeCycle {
      * Starts the component.
      *
      * @throws Exception If the component fails to start.
-     * @see #isStarted()
+     * @see LifeCycleStates#isStarted()
      * @see #stop()
-     * @see #isFailed()
+     * @see LifeCycleStates#isFailed()
      */
     void start() throws Exception;
 
@@ -40,42 +37,13 @@ public interface LifeCycle {
      * normally, but it can be interrupted.
      *
      * @throws Exception If the component fails to stop.
-     * @see #isStopped()
+     * @see LifeCycleStates#isStopped()
      * @see #start()
-     * @see #isFailed()
+     * @see LifeCycleStates#isFailed()
      */
     void stop() throws Exception;
 
-    /**
-     * @return true if the component is starting.
-     * @see #isStarted()
-     */
-    boolean isStarting();
 
-    /**
-     * @return true if the component has been started.
-     * @see LifeCycle#start()
-     * @see #isStarting()
-     */
-    boolean isStarted();
-
-    /**
-     * @return true if the component is stopping.
-     * @see #isStopped()
-     */
-    boolean isStopping();
-
-    /**
-     * @return true if the component has been stopped.
-     * @see LifeCycle#stop()
-     * @see #isStopping()
-     */
-    boolean isStopped();
-
-    /**
-     * @return true if the component has failed to start or has failed to stop.
-     */
-    boolean isFailed();
 
     /**
      * Listener.
@@ -102,14 +70,6 @@ public interface LifeCycle {
         default void onStopped(LifeCycle object) {
 
         }
-    }
-
-    class States {
-        public static final State STARTING = StateFactory.named("STARTING");
-        public static final State STARTED = StateFactory.named("STARTED");
-        public static final State STOPPING = StateFactory.named("STOPPING");
-        public static final State STOPPED = StateFactory.named("STOPPED");
-        public static final State FAILED = StateFactory.named("FAILED");
     }
 
 }

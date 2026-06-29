@@ -57,40 +57,36 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
         publisher_.getListeners().remove(Objects.requireNonNull(listener));
     }
 
-    public boolean isStarted() {
-        return getStateHolder().isExpected(States.STARTED);
+    protected boolean isStarted() {
+        return getStateHolder().isExpected(LifeCycleStates.STARTED);
     }
 
-    @Override
-    public boolean isStarting() {
-        return getStateHolder().isExpected(States.STARTING);
+    protected boolean isStarting() {
+        return getStateHolder().isExpected(LifeCycleStates.STARTING);
     }
 
-    @Override
-    public boolean isStopping() {
-        return getStateHolder().isExpected(States.STOPPING);
+    protected boolean isStopping() {
+        return getStateHolder().isExpected(LifeCycleStates.STOPPING);
     }
 
-    @Override
-    public boolean isStopped() {
-        return getStateHolder().isExpected(States.STOPPED);
+    protected boolean isStopped() {
+        return getStateHolder().isExpected(LifeCycleStates.STOPPED);
     }
 
-    @Override
-    public boolean isFailed() {
-        return getStateHolder().isExpected(States.FAILED);
+    protected boolean isFailed() {
+        return getStateHolder().isExpected(LifeCycleStates.FAILED);
     }
 
     @Override
     public void start() throws Exception {
         State[] expected = isStartAfterFailAllowed
-                ? new State[]{States.FAILED, States.STOPPED}
-                : new State[]{States.STOPPED};
-        if (getStateHolder().trySet(expected, States.STARTING)) {
+                ? new State[]{LifeCycleStates.FAILED, LifeCycleStates.STOPPED}
+                : new State[]{LifeCycleStates.STOPPED};
+        if (getStateHolder().trySet(expected, LifeCycleStates.STARTING)) {
             Try.runnable(() -> {
                 beginStart();
                 doStart();
-                getStateHolder().set(States.STARTED);
+                getStateHolder().set(LifeCycleStates.STARTED);
                 endStart();
             }).onCatch((th) -> {
                 if (handleFailure(th) == FailureAction.RETHROW) {
@@ -102,11 +98,11 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
 
     @Override
     public void stop() throws Exception {
-        if (getStateHolder().trySet(States.STARTED, States.STOPPING)) {
+        if (getStateHolder().trySet(LifeCycleStates.STARTED, LifeCycleStates.STOPPING)) {
             Try.runnable(() -> {
                 beginStop();
                 doStop();
-                getStateHolder().set(States.STOPPED);
+                getStateHolder().set(LifeCycleStates.STOPPED);
                 endStop();
             }).onCatch((th) -> {
                 if (handleFailure(th) == FailureAction.RETHROW) {
@@ -161,7 +157,7 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
     }
 
     /**
-     * Состояние {@link States#FAILED} устанавливается после вызова всех методов,
+     * Состояние {@link LifeCycleStates#FAILED} устанавливается после вызова всех методов,
      * что бы можно было понять: на каком этапе возникла ошибка.
      *
      * @param th исключение, приведшее к краху.
@@ -172,7 +168,7 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
         ExceptionUtils.collectAndThrow(
                 () -> action.set(Objects.requireNonNull(onFailure(th))),
                 () -> publishFailure(th),
-                () -> getStateHolder().set(States.FAILED)
+                () -> getStateHolder().set(LifeCycleStates.FAILED)
         );
         return action.get();
     }

@@ -26,7 +26,7 @@ public abstract class AbstractLifeCycle extends LifeCycleBase {
     private static final long serialVersionUID = 1L;
 
     public AbstractLifeCycle() {
-        this(States.STOPPED);
+        this(LifeCycleStates.STOPPED);
     }
 
     public AbstractLifeCycle(State initialState) {
