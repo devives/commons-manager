@@ -17,6 +17,7 @@
 package com.devives.commons.manager.lifecycle;
 
 import com.devives.commons.lang.ExceptionUtils;
+import com.devives.commons.lang.Ref;
 import com.devives.commons.lang.call.Try;
 import com.devives.commons.publisher.Publisher;
 import com.devives.commons.state.State;
@@ -91,10 +92,11 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
                 doStart();
                 getStateHolder().set(States.STARTED);
                 endStart();
-            }).onCatch((th -> {
-                handleFailure(th);
-                throw th;
-            })).run();
+            }).onCatch((th) -> {
+                if (handleFailure(th) == FailureAction.RETHROW) {
+                    throw th;
+                }
+            }).run();
         }
     }
 
@@ -106,20 +108,17 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
                 doStop();
                 getStateHolder().set(States.STOPPED);
                 endStop();
-            }).onCatch((th -> {
-                handleFailure(th);
-                throw th;
-            })).run();
+            }).onCatch((th) -> {
+                if (handleFailure(th) == FailureAction.RETHROW) {
+                    throw th;
+                }
+            }).run();
         }
     }
 
     private void beginStart() {
         onStarting();
         publishStarting();
-    }
-
-    protected void publishStarting() {
-        publisher_.publish(listener -> listener.onStarting(this));
     }
 
     private void doStart() throws Exception {
@@ -129,10 +128,6 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
     private void endStart() {
         onStarted();
         publishStarted();
-    }
-
-    protected void publishStarted() {
-        publisher_.publish(listener -> listener.onStarted(this));
     }
 
     protected void onStarting() {
@@ -151,10 +146,6 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
     protected void onStopping() {
     }
 
-    protected void publishStopping() {
-        publisher_.publish(listener -> listener.onStopping(this));
-    }
-
     private void doStop() throws Exception {
         onStop();
     }
@@ -169,26 +160,45 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
     protected void onStopped() {
     }
 
-    protected void publishStopped() {
-        publisher_.publish(listener -> listener.onStopped(this));
-    }
-
     /**
      * Состояние {@link States#FAILED} устанавливается после вызова всех методов,
      * что бы можно было понять: на каком этапе возникла ошибка.
      *
      * @param th исключение, приведшее к краху.
+     * @return действие, определяющее необходимость повторного выброса исключения.
      */
-    private void handleFailure(Throwable th) {
+    private FailureAction handleFailure(Throwable th) {
+        final Ref<FailureAction> action = new Ref<>(FailureAction.RETHROW);
         ExceptionUtils.collectAndThrow(
-                () -> onFailure(th),
-                () -> publisher_.publish(listener -> listener.onFailure(this, th)),
+                () -> action.set(Objects.requireNonNull(onFailure(th))),
+                () -> publishFailure(th),
                 () -> getStateHolder().set(States.FAILED)
         );
+        return action.get();
     }
 
-    protected void onFailure(Throwable th) {
+    protected FailureAction onFailure(Throwable th) {
+        return FailureAction.RETHROW;
+    }
 
+    private void publishStarting() {
+        publisher_.publish(listener -> listener.onStarting(this));
+    }
+
+    private void publishStarted() {
+        publisher_.publish(listener -> listener.onStarted(this));
+    }
+
+    private void publishStopping() {
+        publisher_.publish(listener -> listener.onStopping(this));
+    }
+
+    private void publishStopped() {
+        publisher_.publish(listener -> listener.onStopped(this));
+    }
+
+    private void publishFailure(Throwable th) {
+        publisher_.publish(listener -> listener.onFailure(this, th));
     }
 
 }

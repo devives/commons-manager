@@ -103,8 +103,9 @@ public final class DefaultLifeCycleContainer<T extends LifeCycle> extends Abstra
     }
 
     @Override
-    protected void onFailure(Throwable th) {
+    protected FailureAction onFailure(Throwable th) {
         internalStopItems();
+        return super.onFailure(th);
     }
 
     @Override
