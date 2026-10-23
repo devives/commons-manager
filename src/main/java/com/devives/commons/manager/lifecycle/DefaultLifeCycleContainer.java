@@ -76,12 +76,12 @@ public final class DefaultLifeCycleContainer<T extends LifeCycle> extends Abstra
 
     @SuppressWarnings("unchecked")
     private void internalStopItems() {
-        final List<Exception> collector = new ArrayList<>();
+        final List<Throwable> collector = new ArrayList<>();
         final LifeCycle[] array = itemSet.toArray(new LifeCycle[0]);
         for (int i = array.length - 1; i >= 0; i--) {
             try {
                 internalStopItem((T) array[i]);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 collector.add(e);
             }
         }
