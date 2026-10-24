@@ -303,6 +303,16 @@ public class LifeCycleManagerTest {
         }
 
         public abstract Future<?> runInSessionThread(Runnable runnable);
+
+        @Override
+        protected boolean isStarted() {
+            return super.isStarted();
+        }
+
+        @Override
+        protected boolean isStopped() {
+            return super.isStopped();
+        }
     }
 
     /**

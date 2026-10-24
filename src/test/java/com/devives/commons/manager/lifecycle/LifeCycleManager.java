@@ -17,6 +17,7 @@
 package com.devives.commons.manager.lifecycle;
 
 import com.devives.commons.lang.AbstractCloseable;
+import com.devives.commons.lifecycle.LifeCycle;
 import com.devives.commons.manager.*;
 
 import java.io.Serializable;

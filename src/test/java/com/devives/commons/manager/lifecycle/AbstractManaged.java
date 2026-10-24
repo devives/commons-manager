@@ -17,6 +17,8 @@
 package com.devives.commons.manager.lifecycle;
 
 import com.devives.commons.lang.function.FailableConsumer;
+import com.devives.commons.lifecycle.AbstractLifeCycle;
+import com.devives.commons.lifecycle.LifeCycle;
 
 import java.util.Objects;
 
@@ -27,6 +29,7 @@ import java.util.Objects;
  */
 public abstract class AbstractManaged<SELF extends LifeCycle> extends AbstractLifeCycle implements AutoCloseable {
 
+    private static final long serialVersionUID = 1L;
     private final FailableConsumer<SELF> removeCallback_;
 
     public AbstractManaged(FailableConsumer<SELF> removeCallback) {

@@ -16,6 +16,10 @@
  */
 package com.devives.commons.manager.lifecycle;
 
+import com.devives.commons.lifecycle.LifeCycle;
+import com.devives.commons.lifecycle.LifeCycleStates;
+import com.devives.commons.lifecycle.ObservableLifeCycle;
+
 import java.util.Collection;
 
 /**

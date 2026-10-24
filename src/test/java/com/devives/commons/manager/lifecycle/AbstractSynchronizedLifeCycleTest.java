@@ -16,6 +16,9 @@
  */
 package com.devives.commons.manager.lifecycle;
 
+import com.devives.commons.lifecycle.AbstractLifeCycle;
+import com.devives.commons.lifecycle.AbstractSynchronizedLifeCycle;
+import com.devives.commons.lifecycle.LifeCycleStates;
 import com.devives.commons.state.State;
 import com.devives.commons.state.StateHolder;
 import org.junit.jupiter.api.Assertions;

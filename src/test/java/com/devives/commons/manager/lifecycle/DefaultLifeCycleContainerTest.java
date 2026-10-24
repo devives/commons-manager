@@ -16,6 +16,7 @@
  */
 package com.devives.commons.manager.lifecycle;
 
+import com.devives.commons.lifecycle.AbstractLifeCycle;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -137,6 +138,31 @@ public class DefaultLifeCycleContainerTest {
         @Override
         protected void onStop() {
             events.add("stop:" + name);
+        }
+
+        @Override
+        public boolean isStarted() {
+            return super.isStarted();
+        }
+
+        @Override
+        public boolean isStarting() {
+            return super.isStarting();
+        }
+
+        @Override
+        public boolean isStopped() {
+            return super.isStopped();
+        }
+
+        @Override
+        public boolean isStopping() {
+            return super.isStopping();
+        }
+
+        @Override
+        public boolean isFailed() {
+            return super.isFailed();
         }
     }
 

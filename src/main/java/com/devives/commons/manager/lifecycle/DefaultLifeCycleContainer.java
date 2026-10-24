@@ -19,6 +19,9 @@ package com.devives.commons.manager.lifecycle;
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.ref.Ref;
 import com.devives.commons.lang.call.Try;
+import com.devives.commons.lifecycle.AbstractLifeCycle;
+import com.devives.commons.lifecycle.FailureAction;
+import com.devives.commons.lifecycle.LifeCycle;
 import com.devives.commons.manager.*;
 
 import java.io.Serializable;

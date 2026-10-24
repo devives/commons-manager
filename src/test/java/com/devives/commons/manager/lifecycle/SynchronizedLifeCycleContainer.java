@@ -16,6 +16,9 @@
  */
 package com.devives.commons.manager.lifecycle;
 
+import com.devives.commons.lifecycle.AbstractSynchronizedLifeCycle;
+import com.devives.commons.lifecycle.LifeCycle;
+
 import java.util.LinkedHashSet;
 import java.util.Objects;
 

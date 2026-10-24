@@ -17,6 +17,8 @@
 package com.devives.commons.manager.lifecycle;
 
 import com.devives.commons.lang.function.FailableConsumer;
+import com.devives.commons.lifecycle.AbstractSynchronizedLifeCycle;
+import com.devives.commons.lifecycle.LifeCycle;
 
 import java.util.Objects;
 
