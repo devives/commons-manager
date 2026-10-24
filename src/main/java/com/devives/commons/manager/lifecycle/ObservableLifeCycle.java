@@ -16,10 +16,23 @@
  */
 package com.devives.commons.manager.lifecycle;
 
+/**
+ * Интерфейс объекта с жизненным циклом, на события которого можно подписаться.
+ */
 public interface ObservableLifeCycle extends LifeCycle {
 
+    /**
+     * Добавляет слушателя событий в коллекцию слушателей событий этого объекта.
+     *
+     * @param listener слушатель событий.
+     */
     void addListener(Listener listener);
 
+    /**
+     * Удаляет слушателя событий из коллекции слушателей событий этого объекта.
+     *
+     * @param listener слушатель событий.
+     */
     void removeListener(Listener listener);
 
 

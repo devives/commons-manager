@@ -89,6 +89,7 @@ public final class DefaultLifeCycleContainer<T extends LifeCycle> extends Abstra
     }
 
     private void internalStartItems() {
+        // При исключении на старте любого элемента, исключение будет передано в {@link #onFailure).
         itemSet.forEach(this::internalStartItem);
     }
 
