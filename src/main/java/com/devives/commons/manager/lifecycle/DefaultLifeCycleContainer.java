@@ -17,6 +17,7 @@
 package com.devives.commons.manager.lifecycle;
 
 import com.devives.commons.lang.ExceptionUtils;
+import com.devives.commons.lang.Ref;
 import com.devives.commons.lang.call.Try;
 import com.devives.commons.manager.*;
 
@@ -104,13 +105,13 @@ public final class DefaultLifeCycleContainer<T extends LifeCycle> extends Abstra
     }
 
     @Override
-    protected FailureAction onFailure(Throwable th) {
+    protected FailureAction onFailure(Ref<Throwable> thRef) {
         try {
             internalStopItems();
         } catch (Throwable th1) {
-            th.addSuppressed(th1);
+            thRef.get().addSuppressed(th1);
         }
-        return super.onFailure(th);
+        return super.onFailure(thRef);
     }
 
     @Override

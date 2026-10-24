@@ -16,6 +16,7 @@
  */
 package com.devives.commons.manager.lifecycle;
 
+import com.devives.commons.lang.Ref;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -51,6 +52,25 @@ public class LifeCycleBaseTest {
         Assertions.assertTrue(lifeCycle.isFailed());
     }
 
+    @Test
+    public void start_failureReplacedInOnFailure_rethrowsAndPublishesReplacement() {
+        final RuntimeException original = new RuntimeException("start failed");
+        final AbstractLifeCycle lifeCycle = new ReplacingFailureLifeCycle(original);
+        final Ref<Throwable> published = Ref.ofNullable(null);
+        lifeCycle.addListener(new LifeCycle.Listener() {
+            @Override
+            public void onFailure(LifeCycle object, Throwable throwable) {
+                published.set(throwable);
+            }
+        });
+
+        final IllegalStateException actual = Assertions.assertThrows(IllegalStateException.class, lifeCycle::start);
+
+        Assertions.assertSame(original, actual.getCause());
+        Assertions.assertSame(actual, published.get());
+        Assertions.assertTrue(lifeCycle.isFailed());
+    }
+
     private static class DefaultFailureLifeCycle extends AbstractLifeCycle {
         private final RuntimeException startFailure;
         private final RuntimeException stopFailure;
@@ -82,8 +102,21 @@ public class LifeCycleBaseTest {
         }
 
         @Override
-        protected FailureAction onFailure(Throwable th) {
+        protected FailureAction onFailure(Ref<Throwable> thRef) {
             return FailureAction.SUPPRESS;
+        }
+    }
+
+    private static final class ReplacingFailureLifeCycle extends DefaultFailureLifeCycle {
+
+        private ReplacingFailureLifeCycle(RuntimeException startFailure) {
+            super(startFailure, null);
+        }
+
+        @Override
+        protected FailureAction onFailure(Ref<Throwable> thRef) {
+            thRef.set(new IllegalStateException("replaced", thRef.get()));
+            return FailureAction.RETHROW;
         }
     }
 

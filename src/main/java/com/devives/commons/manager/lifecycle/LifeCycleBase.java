@@ -32,7 +32,7 @@ import java.util.Objects;
  * <p>
  * Subclasses implement {@link #onStart()} and {@link #onStop()} and may override the
  * {@code onStarting}/{@code onStarted}/{@code onStopping}/{@code onStopped} hooks and
- * {@link #onFailure(Throwable)}.
+ * {@link #onFailure(Ref)}.
  *
  * <p><strong>State transitions.</strong></p>
  * <ul>
@@ -175,11 +175,11 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
      *     <li>{@link #onStarted()};
      *     <li>notification {@link LifeCycle.Listener#onStarted(LifeCycle)}.
      * </ol>
-     * If any step fails, {@link #onFailure(Throwable)} is called, listeners are notified via
+     * If any step fails, {@link #onFailure(Ref)} is called, listeners are notified via
      * {@link LifeCycle.Listener#onFailure(LifeCycle, Throwable)} and the state is set to
      * {@link LifeCycleStates#FAILED}.
      *
-     * @throws Exception the start failure, if {@link #onFailure(Throwable)} returned
+     * @throws Exception the start failure (possibly replaced by {@link #onFailure(Ref)}), if it returned
      *                   {@link FailureAction#RETHROW}, or an exception thrown during failure handling
      *                   (with the original failure added to it as suppressed).
      */
@@ -195,8 +195,9 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
                 getStateHolder().set(LifeCycleStates.STARTED);
                 endStart();
             }).onCatch((th) -> {
-                if (handleFailure(th) == FailureAction.RETHROW) {
-                    throw th;
+                final Ref<Throwable> thRef = Ref.of(th);
+                if (handleFailure(thRef) == FailureAction.RETHROW) {
+                    throw thRef.get();
                 }
             }).run();
         }
@@ -215,11 +216,11 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
      *     <li>{@link #onStopped()};
      *     <li>notification {@link LifeCycle.Listener#onStopped(LifeCycle)}.
      * </ol>
-     * If any step fails, {@link #onFailure(Throwable)} is called, listeners are notified via
+     * If any step fails, {@link #onFailure(Ref)} is called, listeners are notified via
      * {@link LifeCycle.Listener#onFailure(LifeCycle, Throwable)} and the state is set to
      * {@link LifeCycleStates#FAILED}.
      *
-     * @throws Exception the stop failure, if {@link #onFailure(Throwable)} returned
+     * @throws Exception the stop failure (possibly replaced by {@link #onFailure(Ref)}), if it returned
      *                   {@link FailureAction#RETHROW}, or an exception thrown during failure handling
      *                   (with the original failure added to it as suppressed).
      */
@@ -232,8 +233,9 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
                 getStateHolder().set(LifeCycleStates.STOPPED);
                 endStop();
             }).onCatch((th) -> {
-                if (handleFailure(th) == FailureAction.RETHROW) {
-                    throw th;
+                final Ref<Throwable> thRef = Ref.of(th);
+                if (handleFailure(thRef) == FailureAction.RETHROW) {
+                    throw thRef.get();
                 }
             }).run();
         }
@@ -312,19 +314,22 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
     }
 
     /**
-     * Handles a failure of {@link #start()} or {@link #stop()}: calls {@link #onFailure(Throwable)},
+     * Handles a failure of {@link #start()} or {@link #stop()}: calls {@link #onFailure(Ref)},
      * notifies listeners and sets the {@link LifeCycleStates#FAILED} state. All three steps are
      * executed even if some of them fail; their exceptions are collected and thrown afterwards.
      * The {@code FAILED} state is set last, so that handlers can determine at which stage the failure occurred.
      *
-     * @param th the failure.
+     * Listeners receive the failure held by {@code thRef} after {@link #onFailure(Ref)} has returned,
+     * i.e. the replacement, if {@code onFailure} has replaced it.
+     *
+     * @param thRef reference to the failure; {@link #onFailure(Ref)} may replace the value.
      * @return the action that defines whether the failure must be rethrown.
      */
-    private FailureAction handleFailure(Throwable th) {
+    private FailureAction handleFailure(Ref<Throwable> thRef) {
         final Ref<FailureAction> action = Ref.of(FailureAction.RETHROW);
         ExceptionUtils.collectAndThrow(
-                () -> action.set(Objects.requireNonNull(onFailure(th))),
-                () -> publishFailure(th),
+                () -> action.set(Objects.requireNonNull(onFailure(thRef))),
+                () -> publishFailure(thRef.get()),
                 () -> getStateHolder().set(LifeCycleStates.FAILED)
         );
         return action.get();
@@ -339,12 +344,16 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
      * {@code onStopping}/{@code onStop} (or the corresponding notification);
      * {@code STARTED}/{@code STOPPED} &mdash; in {@link #onStarted()}/{@link #onStopped()}
      * or the corresponding notification.
+     * <p>
+     * The failure may be replaced (e.g. wrapped) via {@code thRef.set(...)}; {@code null} is not allowed.
+     * The replacement is passed to {@link LifeCycle.Listener#onFailure(LifeCycle, Throwable)} and,
+     * if {@link FailureAction#RETHROW} is returned, thrown from {@link #start()}/{@link #stop()}.
      *
-     * @param th the failure.
+     * @param thRef reference to the failure (non-nullable).
      * @return the action that defines whether the failure must be rethrown (non-null);
      * {@link FailureAction#RETHROW} by default.
      */
-    protected FailureAction onFailure(Throwable th) {
+    protected FailureAction onFailure(Ref<Throwable> thRef) {
         return FailureAction.RETHROW;
     }
 
