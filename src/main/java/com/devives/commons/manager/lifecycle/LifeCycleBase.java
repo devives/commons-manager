@@ -321,7 +321,7 @@ abstract class LifeCycleBase extends Stateful<State> implements LifeCycle {
      * @return the action that defines whether the failure must be rethrown.
      */
     private FailureAction handleFailure(Throwable th) {
-        final Ref<FailureAction> action = new Ref<>(FailureAction.RETHROW);
+        final Ref<FailureAction> action = Ref.of(FailureAction.RETHROW);
         ExceptionUtils.collectAndThrow(
                 () -> action.set(Objects.requireNonNull(onFailure(th))),
                 () -> publishFailure(th),
