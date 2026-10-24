@@ -17,7 +17,7 @@
 package com.devives.commons.manager.lifecycle;
 
 import com.devives.commons.lang.ExceptionUtils;
-import com.devives.commons.lang.Ref;
+import com.devives.commons.lang.ref.Ref;
 import com.devives.commons.lang.call.Try;
 import com.devives.commons.publisher.Publisher;
 import com.devives.commons.state.State;

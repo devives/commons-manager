@@ -16,7 +16,7 @@
  */
 package com.devives.commons.manager.lifecycle;
 
-import com.devives.commons.lang.Ref;
+import com.devives.commons.lang.ref.Ref;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
