@@ -18,14 +18,23 @@ package com.devives.commons.manager.lifecycle;
 
 
 import com.devives.commons.lifecycle.LifeCycle;
-import com.devives.commons.manager.*;
+import com.devives.commons.manager.HashManager;
+import com.devives.commons.manager.IdentityWrapper;
+import com.devives.commons.manager.ManagedAdapter;
+import com.devives.commons.manager.Manager;
 
 import java.io.Serializable;
 
 /**
  * Start and stop {@link LifeCycle} instances.
  * <p>
- * Class is an example of {@link ConcurrentHashManager} usage in more complex scenarios.
+ * Class is an example of {@link HashManager} usage in more complex scenarios.
+ * <p>
+ * Note on failures: when {@code start()} fails, the manager removes the entry and calls
+ * {@link ManagedAdapter#destroyObject(Object)} on the object once, in the {@code FAILED} state.
+ * {@code stop()} is not applicable there, and the adapter sees the object through
+ * {@link LifeCycle} only, so it cannot release anything the object acquired before the failure.
+ * Such resources must be released by the object itself in its {@code onFailure(Ref)} hook.
  *
  * @param <O> type of managed object
  */
@@ -38,6 +47,10 @@ final class SimpleLifeCycleManager<O extends LifeCycle> implements Serializable 
         return new IdentityWrapper<>(object);
     }
 
+    /**
+     * Maps the manager's operations onto {@link LifeCycle#start()} and {@link LifeCycle#stop()}.
+     * Stopping is the only release path this adapter has; see the class note on failures.
+     */
     private static final class LifeCycleAdapter<T extends LifeCycle> implements ManagedAdapter<T> {
 
         @Override
@@ -48,6 +61,19 @@ final class SimpleLifeCycleManager<O extends LifeCycle> implements Serializable 
         @Override
         public void stopObject(T object) throws Exception {
             object.stop();
+        }
+
+        /**
+         * Called by the manager once on an object whose start was rolled back, in the
+         * {@code FAILED} state. Nothing can be done for it generically here: {@code stop()}
+         * is not applicable in {@code FAILED}, and the adapter sees the object as
+         * {@link LifeCycle} only. Releasing resources acquired before the failure is the
+         * object's own {@code onFailure(Ref)} responsibility, so the override stays empty —
+         * it exists to state that explicitly rather than inherit an unexplained default.
+         */
+        @Override
+        public void destroyObject(T object) {
+
         }
 
     }
