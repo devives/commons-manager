@@ -22,7 +22,6 @@ import com.devives.commons.listener.ListenersBuilder;
 import com.devives.commons.publisher.Publisher;
 import com.devives.commons.publisher.Publishers;
 
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -37,9 +36,8 @@ import java.util.function.Function;
  * @param <K> key type.
  * @param <O> managed object type.
  */
-public class UsageCountingManager<K, O> implements Serializable {
+public class UsageCountingManager<K, O> {
 
-    private static final long serialVersionUID = 1L;
     private final InternalManager<K, O> internalManager_;
 
     public UsageCountingManager() {
@@ -281,7 +279,6 @@ public class UsageCountingManager<K, O> implements Serializable {
     }
 
     protected static class InternalManager<K, O> extends ConcurrentHashManager<K, O> {
-        private static final long serialVersionUID = 1L;
         private volatile boolean removeUnusedObjects_ = true;
         private final Publisher<UsageCountingManager.Listener<O>> publisher_;
 
@@ -387,7 +384,6 @@ public class UsageCountingManager<K, O> implements Serializable {
         }
 
         protected static class CountingEntry<I> extends Entry<I> {
-            private static final long serialVersionUID = 1L;
             private final AtomicInteger usageCounter = new AtomicInteger();
 
             public int getUsages() {

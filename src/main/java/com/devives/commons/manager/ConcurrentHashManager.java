@@ -20,7 +20,6 @@ import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.manager.lock.AbstractLockSource;
 import com.devives.commons.manager.lock.RWLockSource;
 
-import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -37,9 +36,7 @@ import static com.devives.commons.manager.Manager.noopManagedAdapter;
  * @param <O> type of managed object
  * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
  */
-public class ConcurrentHashManager<K, O> extends AbstractManager<K, O> implements Serializable {
-
-    private static final long serialVersionUID = 1L;
+public class ConcurrentHashManager<K, O> extends AbstractManager<K, O> {
 
     public ConcurrentHashManager() {
         super(new ConcurrentHashMap<>(), new RWLockSource<K>(false), noopManagedAdapter(), noopHooks());

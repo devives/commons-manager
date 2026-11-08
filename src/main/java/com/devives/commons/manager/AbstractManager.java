@@ -19,7 +19,6 @@ package com.devives.commons.manager;
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.call.Try;
 
-import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
@@ -35,8 +34,7 @@ import static com.devives.commons.manager.Manager.*;
  * @param <O> type of managed object
  * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
  */
-public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializable {
-    private static final long serialVersionUID = 1L;
+public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     private final Map<K, Entry<O>> entryMap_;
     private final LockSource<K> lockSource_;
@@ -694,8 +692,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
      *
      * @param <O> type of managed object
      */
-    protected final static class ObjectAndAdapter<O> implements Serializable {
-        private static final long serialVersionUID = 1L;
+    protected final static class ObjectAndAdapter<O> {
 
         public final O object;
         public final ManagedAdapter<O> adapter;
@@ -707,8 +704,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O>, Serializab
 
     }
 
-    protected static class Entry<O> implements Serializable {
-        private static final long serialVersionUID = 1L;
+    protected static class Entry<O> {
         /**
          * Volatile variable for the atomic non blocking read write operations.
          */

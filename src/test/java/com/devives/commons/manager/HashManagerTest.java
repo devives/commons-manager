@@ -121,27 +121,6 @@ public class HashManagerTest {
     }
 
     @Test
-    public void serializeRoundTrip_nonEmptyManager_stateRestored() throws Exception {
-        final Manager<String, Integer> manager = newManager();
-        try {
-            manager.put("1", () -> 1);
-            manager.put("2", () -> 2);
-
-            Assertions.assertTrue(manager instanceof Serializable);
-
-            @SuppressWarnings("unchecked")
-            final Manager<String, Integer> restored =
-                    (Manager<String, Integer>) serializeRoundTrip((Serializable) manager);
-
-            Assertions.assertEquals(2, restored.size());
-            Assertions.assertEquals(Integer.valueOf(1), restored.get("1"));
-            Assertions.assertEquals(Integer.valueOf(2), restored.get("2"));
-        } finally {
-            manager.clear();
-        }
-    }
-
-    @Test
     public void values_contains_existingValue_true() throws Exception {
         forManager(manager -> {
             final SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);
@@ -356,8 +335,6 @@ public class HashManagerTest {
 
     protected <K, O> Manager<K, O> newTrackingManager(AtomicInteger gotCounter) {
         return new HashManager<K, O>() {
-            private static final long serialVersionUID = 1L;
-
             @Override
             protected void onEntryGot(Entry<O> entry) {
                 gotCounter.incrementAndGet();
@@ -505,7 +482,6 @@ public class HashManagerTest {
     }
 
     private static final class OrderedMapManager<K, O> extends AbstractManager<K, O> {
-        private static final long serialVersionUID = 1L;
 
         private OrderedMapManager() {
             super(new LinkedHashMap<>());
@@ -531,19 +507,6 @@ public class HashManagerTest {
         @Override
         protected void doClear() {
             doRemoveAll();
-        }
-    }
-
-    private static <T extends Serializable> T serializeRoundTrip(T value) throws Exception {
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream)) {
-            objectOutputStream.writeObject(value);
-        }
-        try (ObjectInputStream objectInputStream =
-                     new ObjectInputStream(new ByteArrayInputStream(outputStream.toByteArray()))) {
-            @SuppressWarnings("unchecked")
-            final T result = (T) objectInputStream.readObject();
-            return result;
         }
     }
 

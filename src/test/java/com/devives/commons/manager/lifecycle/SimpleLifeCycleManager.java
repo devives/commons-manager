@@ -23,8 +23,6 @@ import com.devives.commons.manager.IdentityWrapper;
 import com.devives.commons.manager.ManagedAdapter;
 import com.devives.commons.manager.Manager;
 
-import java.io.Serializable;
-
 /**
  * Start and stop {@link LifeCycle} instances.
  * <p>
@@ -38,9 +36,8 @@ import java.io.Serializable;
  *
  * @param <O> type of managed object
  */
-final class SimpleLifeCycleManager<O extends LifeCycle> implements Serializable {
+final class SimpleLifeCycleManager<O extends LifeCycle> {
 
-    private static final long serialVersionUID = 1L;
     private final Manager<IdentityWrapper<O>, O> internalManager_ = new HashManager<>(new LifeCycleAdapter<>());
 
     private IdentityWrapper<O> buildKey(O object) {

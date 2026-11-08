@@ -16,7 +16,6 @@
  */
 package com.devives.commons.manager;
 
-import java.io.Serializable;
 import java.util.HashMap;
 
 import static com.devives.commons.manager.Manager.*;
@@ -27,9 +26,7 @@ import static com.devives.commons.manager.Manager.*;
  * @param <O> type of managed object
  * @author Vladimir Ivanov {@code <ivvlev@devives.com>}
  */
-public class HashManager<K, O> extends AbstractManager<K, O> implements Serializable {
-
-    private static final long serialVersionUID = 1L;
+public class HashManager<K, O> extends AbstractManager<K, O> {
 
     public HashManager() {
         super(new HashMap<>());
