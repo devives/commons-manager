@@ -26,7 +26,6 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -119,6 +118,25 @@ public class LifeCycleManagerTest {
         });
     }
 
+    /**
+     * Одна фабрика порождает несколько сессий, поэтому всересурсы сессии должны принадлежать ей, а не
+     * фабрике: закрытие первой сессии не должно ломать исполнитель второй.
+     */
+    @Test
+    public void create_TwoActiveSessions_closeOfOneDoesNotBreakAnother() throws Exception {
+        forTestManager(manager -> {
+            AbstractSession session1 = manager.create(testSession1Factory);
+            AbstractSession session2 = manager.create(testSession1Factory);
+
+            session1.close();
+
+            Assertions.assertTrue(session2.isStarted());
+            session2.runInSessionThread(() -> {
+            }).get();
+            session2.close();
+        });
+    }
+
     private static void forTestManager(FailableConsumer<LifeCycleManager<AbstractSession>> consumer) throws Exception {
         LifeCycleManager<AbstractSession> manager = new LifeCycleManager<>();
         try {
@@ -175,7 +193,6 @@ public class LifeCycleManagerTest {
 
         protected final String keyPrefix_;
         protected final ServerContext serverContext_;
-        protected volatile DataSource dataSource_;
         protected final AtomicLong sequence_ = new AtomicLong(0);
 
         public SessionFactoryAbst(String keyPrefix, ServerContext serverContext) {
@@ -186,22 +203,14 @@ public class LifeCycleManagerTest {
         public String buildKey() {
             return keyPrefix_ + sequence_.incrementAndGet();
         }
-
-        protected void acquireResources() {
-            dataSource_ = serverContext_.acquireDataSource();
-        }
-
-        protected void releaseResources() {
-            Optional.ofNullable(dataSource_).ifPresent(serverContext_::releaseDataSource);
-        }
     }
 
     /**
-     *
+     * Пересессионные ресурсы (исполнитель, DataSource) принадлежат сессии: один экземпляр фабрики
+     * порождает много сессий, и хранить в поле ссылки на ресурс одной из них нельзя — следующая
+     * созданная сессия их затрёт.
      */
     private static class ActiveSessionFactory extends SessionFactoryAbst {
-
-        private ExecutorService executorService_;
 
         public ActiveSessionFactory(ServerContext serverContext) {
             super("A-", serverContext);
@@ -209,14 +218,12 @@ public class LifeCycleManagerTest {
 
         @Override
         public AbstractSession createObject(Object key, LifeCycleManager<AbstractSession> manager) throws Exception {
-            acquireResources();
-            executorService_ = Executors.newSingleThreadExecutor();
-            return new ActiveSession(String.valueOf(key), dataSource_, executorService_, manager::remove);
+            return new ActiveSession(String.valueOf(key), serverContext_.acquireDataSource(), Executors.newSingleThreadExecutor(), manager::remove);
         }
 
         @Override
         public void startObject(AbstractSession session) throws Exception {
-            Future<?> future = executorService_.submit(() -> {
+            Future<?> future = ((ActiveSession) session).executorService_.submit(() -> {
                 ExceptionUtils.passChecked(session::start);
             });
             future.get();
@@ -224,7 +231,7 @@ public class LifeCycleManagerTest {
 
         @Override
         public void stopObject(AbstractSession session) throws Exception {
-            Future<?> future = executorService_.submit(() -> {
+            Future<?> future = ((ActiveSession) session).executorService_.submit(() -> {
                 ExceptionUtils.passChecked(session::stop);
             });
             future.get();
@@ -232,8 +239,9 @@ public class LifeCycleManagerTest {
 
         @Override
         public void destroyObject(AbstractSession object) throws Exception {
-            releaseResources();
-            executorService_.shutdown();
+            ActiveSession session = (ActiveSession) object;
+            serverContext_.releaseDataSource(session.dataSource_);
+            session.executorService_.shutdown();
             super.destroyObject(object);
         }
 
@@ -250,8 +258,7 @@ public class LifeCycleManagerTest {
 
         @Override
         public AbstractSession createObject(Object key, LifeCycleManager<AbstractSession> manager) throws Exception {
-            acquireResources();
-            return new PassiveSession(String.valueOf(key), dataSource_, manager::remove);
+            return new PassiveSession(String.valueOf(key), serverContext_.acquireDataSource(), manager::remove);
         }
 
         @Override
@@ -266,7 +273,7 @@ public class LifeCycleManagerTest {
 
         @Override
         public void destroyObject(AbstractSession object) throws Exception {
-            releaseResources();
+            serverContext_.releaseDataSource(object.dataSource_);
             super.destroyObject(object);
         }
     }
