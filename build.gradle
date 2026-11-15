@@ -26,10 +26,10 @@ repositories {
 
 dependencies {
     if (project.hasProperty("com.devives.commons.project-group")) {
-        implementation(project(path: ':commons-lang'))
+        api(project(path: ':commons-lang'))
         testImplementation(project(path: ':commons-lang', configuration: 'testArtifacts'))
     } else {
-        implementation("com.devives:devive-commons-lang'0.9.1'")
+        api("com.devives:devive-commons-lang'0.9.1'")
         testImplementation("com.devives:devive-commons-lang'0.9.1':tests")
     }
     testImplementation platform('org.junit:junit-bom:5.9.1')
