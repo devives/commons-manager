@@ -41,9 +41,28 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     private final ManagedAdapter<O> defaultAdapter_;
     private final Hooks<K, O> hooks_;
     /**
-     * Done similarly to java.util.concurrent.ConcurrentHashMap#values.
+     * The cached values view. The field is intentionally non-volatile: done similarly to
+     * {@code java.util.concurrent.ConcurrentHashMap#values()}, which caches its view fields
+     * ({@code keySet}, {@code values}, {@code entrySet}) in plain transient fields as well.
+     * <p>
+     * This is a deliberate, analyzed trade-off ("benign data races", Java Concurrency in Practice, §16.3), not a defect.
+     * <p>
+     * Do not add {@code volatile} here.
      */
-    private transient Collection<O> values;
+    private transient Collection<O> values_;
+    /**
+     * The cached keys view. The field is intentionally non-volatile: done similarly to
+     * {@code java.util.concurrent.ConcurrentHashMap#keySet()} and {@code HashMap#keySet()}, which cache
+     * their view fields in plain transient fields as well. The data race in the check-then-set idiom is
+     * benign: {@code Collections.unmodifiableSet} over the live map key set view is an immutable, stateless
+     * wrapper, so racing instances are behaviorally indistinguishable — the only observable outcome is
+     * duplicate equivalent views, the losers are garbage-collected.
+     * <p>
+     * This is a deliberate, analyzed trade-off ("benign data races", Java Concurrency in Practice, §16.3), not a defect.
+     * <p>
+     * Do not add {@code volatile} here.
+     */
+    private transient Set<K> keySet_;
 
     protected AbstractManager(Map<K, Entry<O>> entryMap) {
         this(entryMap,
@@ -81,7 +100,12 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     @Override
     public Set<K> keySet() {
-        return Collections.unmodifiableSet(entryMap_.keySet());
+        Set<K> ks = keySet_;
+        if (ks == null) {
+            ks = Collections.unmodifiableSet(entryMap_.keySet());
+            keySet_ = ks;
+        }
+        return ks;
     }
 
     /**
@@ -90,10 +114,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      * @return Unmodifiable collection of values
      */
     public Collection<O> values() {
-        Collection<O> vals = values;
+        Collection<O> vals = values_;
         if (vals == null) {
             vals = Collections.unmodifiableCollection(createValuesCollection(entryMap_::values));
-            values = vals;
+            values_ = vals;
         }
         return vals;
     }
