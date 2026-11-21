@@ -346,6 +346,8 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                         assert entry != null;
                         if (entry.getObjectAndAdapter() == null) {
                             doInitializeEntry(key, entry, factory, adapter);
+                        } else {
+                            doEntryGot(entry);
                         }
                         result = entry.getObjectAndAdapter().object;
                     } finally {

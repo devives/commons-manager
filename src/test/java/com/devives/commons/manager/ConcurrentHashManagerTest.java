@@ -16,6 +16,7 @@
  */
 package com.devives.commons.manager;
 
+import com.devives.commons.manager.lock.AbstractLockSource;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,95 @@ public class ConcurrentHashManagerTest extends HashManagerTest {
                 gotCounter.incrementAndGet();
             }
         };
+    }
+
+    private static class UpgradingLockSource extends AbstractLockSource<String> {
+        Runnable onUpgrade;
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected <E extends Manager.Lock> E doAcquireLock() {
+            return (E) new UpgradingLock();
+        }
+
+        private final class UpgradingLock extends AbstractLock {
+            @Override
+            public void lockRead() {
+            }
+
+            @Override
+            public void unlockRead() {
+            }
+
+            @Override
+            public void lockWrite() {
+            }
+
+            @Override
+            public void unlockWrite() {
+            }
+
+            @Override
+            public void upgradeLock() {
+                final Runnable action = onUpgrade;
+                onUpgrade = null;
+                if (action != null) {
+                    action.run();
+                }
+            }
+
+            @Override
+            public void downgradeLock() {
+            }
+        }
+    }
+
+    private static class TrackingManager extends ConcurrentHashManager<String, String> {
+        private final AtomicInteger gotCounter = new AtomicInteger();
+        private final AtomicInteger addedCounter = new AtomicInteger();
+
+        TrackingManager(UpgradingLockSource lockSource) {
+            super(lockSource);
+        }
+
+        @Override
+        protected void onEntryGot(Entry<String> entry) {
+            gotCounter.incrementAndGet();
+        }
+
+        @Override
+        protected void onEntryAdded(Entry<String> entry) {
+            addedCounter.incrementAndGet();
+        }
+    }
+
+    /**
+     * Проверяется, что заимствование записи, созданной конкурентом, уведомляет {@code onEntryGot}:
+     * если запись появляется между чтением под read-локом и перечитыванием после {@code upgradeLock()},
+     * вызов обязан вернуть объект конкурента и вызвать {@code onEntryGot} — симметрично ветке
+     * «запись найдена под read-локом». Пропуск уведомления занижает счётчик использований
+     * в менеджерах с учётом использований: первый же {@code release} останавливает и уничтожает
+     * объект, ещё используемый другими потоками.
+     * <p>
+     * Гонка воспроизводится детерминированно: тестовый {@code LockSource} в момент
+     * {@code upgradeLock()} выполняет вложенный {@code computeIfAbsent}, публикующий запись,
+     * что эквивалентно созданию записи другим потоком в ожидании write-лока.
+     * <p>
+     * Проверяемые состояния: возвращён объект вложенного вызова ({@code "inner"});
+     * {@code onEntryAdded} вызван ровно один раз (создание записи); {@code onEntryGot} —
+     * ровно один раз (заимствование). До исправления {@code onEntryGot} не вызывался ни разу.
+     */
+    @Test
+    public void computeIfAbsent_entryCreatedDuringLockUpgrade_callsOnEntryGot() {
+        final UpgradingLockSource lockSource = new UpgradingLockSource();
+        final TrackingManager manager = new TrackingManager(lockSource);
+        lockSource.onUpgrade = () -> manager.computeIfAbsent("Item1", () -> "inner");
+
+        final String result = manager.computeIfAbsent("Item1", () -> "outer");
+
+        Assertions.assertEquals("inner", result);
+        Assertions.assertEquals(1, manager.addedCounter.get());
+        Assertions.assertEquals(1, manager.gotCounter.get());
     }
 
     @Nested
