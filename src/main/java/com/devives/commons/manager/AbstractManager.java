@@ -656,9 +656,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      * обработку при ошибках.
      * <p>
      * {@link VirtualMachineError} прерывает операцию немедленно. Любая другая ошибка собирается в
-     * {@code ManagerException("Error while removing key = '<key>'")}; единственная собранная ошибка
+     * {@code ManagerException("Error while removing key: '<key>'")}; единственная собранная ошибка
      * пробрасывается как есть, несколько агрегируются в
-     * {@code ManagerException("Error while removing keys = [...]")} с подавленными ошибками ключей.
+     * {@code ManagerException("Errors occurred while removing keys: [...]")} с подавленными ошибками
+     * ключей.
      * Ключи, упавшие на фазах остановки/уничтожения, всё равно удаляются с карты в finally-блоке
      * деинициализации (CM-21), поэтому бросок не оставляет таких ключей; остаётся только ключ,
      * удаление которого отклонировано хуком {@code onEntryRemoving}.
