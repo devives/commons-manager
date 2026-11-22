@@ -522,7 +522,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                 Try.runnable(() -> {
                     doStartObject(object, adapter);
                     Try.runnable(() -> {
-                        doEntryAdded(entry);
+                        notifyEntryAdded(entry);
                     }).onCatch((th) -> {
                         doStopObject(object, adapter);
                         throw th;
@@ -544,7 +544,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
         beginKeyTransition(key);
         try {
             final ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
-            doEntryRemoving(entry);
+            notifyEntryRemoving(entry);
             Try.runnable(() -> {
                 doStopObject(objectAndAdapter.object, objectAndAdapter.adapter);
             }).doFinally(() -> {
@@ -782,10 +782,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      * @param key   entry key
      * @param entry the record
      */
-    private void notifyEntryGot(final K key, final Entry<O> entry) {
+    protected final void notifyEntryGot(final K key, final Entry<O> entry) {
         beginEntryGotCallback(key);
         try {
-            doEntryGot(entry);
+            onEntryGot(entry);
         } finally {
             endEntryGotCallback(key);
         }
@@ -826,10 +826,6 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                 key));
     }
 
-    protected final void doEntryGot(Entry<O> entry) {
-        onEntryGot(entry);
-    }
-
     /**
      * This method is called after a reference to the managed object has been successfully obtained.
      * <p>
@@ -851,7 +847,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      *
      * @param entry added {@link Entry}
      */
-    protected final void doEntryAdded(Entry<O> entry) {
+    protected final void notifyEntryAdded(Entry<O> entry) {
         onEntryAdded(entry);
     }
 
@@ -870,7 +866,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     }
 
-    protected final void doEntryRemoving(Entry<O> entry) {
+    protected final void notifyEntryRemoving(Entry<O> entry) {
         onEntryRemoving(entry);
     }
 
