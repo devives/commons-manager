@@ -38,7 +38,9 @@ import java.util.concurrent.atomic.AtomicReference;
  *     <li>исключения не теряются: первое — primary, остальные — в {@link Throwable#getSuppressed()};
  *     <li>replace-ветка {@code put} на существующий ключ: старый объект полностью деинициализируется
  *     (stop → remove → destroy) до инициализации нового; replace нетранзакционен — при сбое нового
- *     объекта старый не восстанавливается. События журнала размечаются метками {@code (old)}/{@code (new)}.
+ *     объекта старый не восстанавливается. События журнала размечаются метками {@code (old)}/{@code (new)};
+ *     <li>{@code null} из фабрики отсекается {@link java.util.Objects#requireNonNull} до хуков:
+ *     NPE с ключом, хуки и адаптер null не видят, откатного destroy нет (аудит-находка CM-06).
  * </ul>
  * Менеджер — однопоточный {@link HashManager}, чтобы порядок событий в журнале был детерминирован.
  */
@@ -257,6 +259,36 @@ public class LifecycleHooksJournalTest {
                         "stopping(old)", "stop(old)", "stopped(old)", "destroying(old)", "destroy(old)", "destroyed(old)",
                         "created(new)", "starting(new)", "start(new)", "failure(new)",
                         "destroying(new)", "destroy(new)", "destroyed(new)"},
+                journal.toArray());
+        Assertions.assertTrue(manager.isEmpty());
+    }
+
+    @Test
+    public void computeIfAbsent_factoryReturnsNull_npeWithKeyAndHooksNotCalled() throws Exception {
+        final Journal journal = new Journal();
+        final Manager<String, Object> manager = new HashManager<>(new RecordingAdapter(journal), new RecordingHooks(journal));
+
+        final NullPointerException thrown = Assertions.assertThrows(NullPointerException.class,
+                () -> manager.computeIfAbsent("Item1", () -> null));
+        Assertions.assertEquals("The object factory for key 'Item1' returned null.", thrown.getMessage());
+        // null отсекается до onObjectCreated: ни creation-хуков, ни откатного destroy (мы вне rollback-Try).
+        Assertions.assertEquals(0, journal.events.size());
+        Assertions.assertTrue(manager.isEmpty());
+    }
+
+    @Test
+    public void put_factoryReturnsNull_previousDeinitializedAndNullNotPassedToHooks() throws Exception {
+        final Journal journal = new Journal();
+        final Manager<String, Object> manager = new HashManager<>(new RecordingAdapter(journal), new RecordingHooks(journal));
+        manager.computeIfAbsent("Item1", () -> new Labeled("old"));
+        journal.events.clear();
+
+        final NullPointerException thrown = Assertions.assertThrows(NullPointerException.class,
+                () -> manager.put("Item1", () -> null));
+        Assertions.assertEquals("The object factory for key 'Item1' returned null.", thrown.getMessage());
+        // Replace нетранзакционен (CM-04): старый деинициализирован до вызова фабрики; null к хукам не дошёл.
+        Assertions.assertArrayEquals(
+                new String[]{"stopping(old)", "stop(old)", "stopped(old)", "destroying(old)", "destroy(old)", "destroyed(old)"},
                 journal.toArray());
         Assertions.assertTrue(manager.isEmpty());
     }

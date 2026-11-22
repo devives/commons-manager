@@ -672,7 +672,9 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     }
 
     protected final O doObjectCreate(ObjectFactory<O> factory, ManagedAdapter<O> adapter, K key) throws Exception {
-        final O object = factory.createObject();
+        final O object = Objects.requireNonNull(
+                factory.createObject(),
+                String.format("The object factory for key '%s' returned null.", key));
         Try.runnable(() -> {
             hooks_.onObjectCreated(key, object);
         }).onCatch((th) -> {
