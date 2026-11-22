@@ -489,15 +489,15 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
         final O object = doObjectCreate(factory, adapter, key);
         Try.runnable(() -> {
             entry.initObjectAndAdapter(object, adapter);
-            // Помещаю Entry в карту до вызова #doObjectStart(), что бы текущий поток, при
+            // Помещаю Entry в карту до вызова #doStartObject(), что бы текущий поток, при
             // рекурсивном вызове текущего метода, мог получить ссылку на этот Entry.
             internalPutEntry(key, entry);
             Try.runnable(() -> {
-                doObjectStart(object, adapter);
+                doStartObject(object, adapter);
                 Try.runnable(() -> {
                     doEntryAdded(entry);
                 }).onCatch((th) -> {
-                    doObjectStop(object, adapter);
+                    doStopObject(object, adapter);
                     throw th;
                 }).run();
             }).onCatch((th) -> {
@@ -505,7 +505,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                 throw th;
             }).run();
         }).onCatch((th) -> {
-            doObjectDestroy(object, adapter);
+            internalDestroyObject(object, adapter);
             throw th;
         }).run();
     }
@@ -514,11 +514,11 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
         final ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
         doEntryRemoving(entry);
         Try.runnable(() -> {
-            doObjectStop(objectAndAdapter.object, objectAndAdapter.adapter);
+            doStopObject(objectAndAdapter.object, objectAndAdapter.adapter);
         }).doFinally(() -> {
             ExceptionUtils.collectAndThrow(
                     () -> internalRemoveAndClearEntry(key),
-                    () -> doObjectDestroy(objectAndAdapter.object, objectAndAdapter.adapter)
+                    () -> internalDestroyObject(objectAndAdapter.object, objectAndAdapter.adapter)
             );
         }).run();
     }
@@ -529,7 +529,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     @SuppressWarnings("unchecked")
     protected <E extends Entry<O>> E newEntry() {
-        return (E) new Entry();
+        return (E) new Entry<O>();
     }
 
     /**
@@ -670,62 +670,59 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     protected final O doObjectCreate(ObjectFactory<O> factory, ManagedAdapter<O> adapter, K key) throws Exception {
         final O object = factory.createObject();
         Try.runnable(() -> {
-            getHooks().onObjectCreated(key, object);
+            hooks_.onObjectCreated(key, object);
         }).onCatch((th) -> {
-            doObjectDestroy(object, adapter);
+            internalDestroyObject(object, adapter);
             throw th;
         }).run();
         return object;
     }
 
-    protected final void doObjectStart(O object, ManagedAdapter<O> adapter) throws Exception {
-        final Hooks<K, O> hooks = getHooks();
+    protected final void doStartObject(O object, ManagedAdapter<O> adapter) throws Exception {
         Try.runnable(() -> {
-            hooks.onObjectStarting(object);
+            hooks_.onObjectStarting(object);
             adapter.startObject(object);
             Try.runnable(() -> {
-                hooks.onObjectStarted(object);
+                hooks_.onObjectStarted(object);
             }).onCatch((th) -> {
                 internalStopObject(object, adapter);
                 throw th;
             }).run();
         }).onCatch((th) -> {
-            doObjectFailure(object, adapter, th);
+            internalFailObject(object, adapter, th);
             throw th;
         }).run();
     }
 
-    protected final void doObjectFailure(O object, ManagedAdapter<O> adapter, Throwable throwable) throws Exception {
+    protected final void internalFailObject(O object, ManagedAdapter<O> adapter, Throwable throwable) throws Exception {
         getHooks().onObjectFailure(object, throwable);
     }
 
-    protected final void doObjectStop(O object, ManagedAdapter<O> adapter) throws Exception {
+    protected final void doStopObject(O object, ManagedAdapter<O> adapter) throws Exception {
         Try.runnable(() -> {
             internalStopObject(object, adapter);
         }).onCatch((th) -> {
-            doObjectFailure(object, adapter, th);
+            internalFailObject(object, adapter, th);
             throw th;
         }).run();
     }
 
-    private void internalStopObject(final O object, final ManagedAdapter<O> adapter) {
-        final Hooks<K, O> hooks = getHooks();
+    protected final void internalStopObject(final O object, final ManagedAdapter<O> adapter) throws Exception {
         ExceptionUtils.collectAndThrow(
-                () -> hooks.onObjectStopping(object),
+                () -> hooks_.onObjectStopping(object),
                 () -> {
+                    // Исключение из адаптера будет направлено в #doObjectFailure() во внешнем методе.
                     adapter.stopObject(object);
-                    hooks.onObjectStopped(object);
+                    hooks_.onObjectStopped(object);
                 }
         );
     }
 
-    protected final void doObjectDestroy(O object, ManagedAdapter<O> adapter) throws Exception {
+    protected final void internalDestroyObject(O object, ManagedAdapter<O> adapter) throws Exception {
         ExceptionUtils.collectAndThrow(
-                () -> getHooks().onObjectDestroying(object),
-                () -> {
-                    adapter.destroyObject(object);
-                    getHooks().onObjectDestroyed(object);
-                }
+                () -> hooks_.onObjectDestroying(object),
+                () -> adapter.destroyObject(object),
+                () -> hooks_.onObjectDestroyed(object)
         );
     }
 
