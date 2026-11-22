@@ -46,10 +46,12 @@ public class HashManager<K, O> extends AbstractManager<K, O> {
     }
 
     /**
-     * Удаление мутирует внутреннюю карту во время обхода, поэтому реализация возвращает
-     * снимок множества ключей: обход live-view {@code HashMap} бросил бы {@code ConcurrentModificationException}.
+     * Обход мутирует внутреннюю карту (action {@code forEach} и массовое удаление удаляют ключи),
+     * поэтому реализация возвращает снимок множества ключей: обход live-view {@code HashMap}
+     * бросил бы {@code ConcurrentModificationException}.
      */
-    protected final Iterable<K> keysForBulkRemoval() {
+    @Override
+    protected final Iterable<K> keysForIteration() {
         return new ArrayList<>(keySet());
     }
 

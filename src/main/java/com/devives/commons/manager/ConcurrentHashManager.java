@@ -71,10 +71,11 @@ public class ConcurrentHashManager<K, O> extends AbstractManager<K, O> {
 
     /**
      * Обход слабосогласованного live-view {@code ConcurrentHashMap} допускает изменение множества
-     * ключей самим удалением, копия не нужна.
+     * ключей во время итерации (удаление и добавление из action {@code forEach}, массовое удаление),
+     * копия не нужна.
      */
     @Override
-    protected final Iterable<K> keysForBulkRemoval() {
+    protected final Iterable<K> keysForIteration() {
         return keySet();
     }
 

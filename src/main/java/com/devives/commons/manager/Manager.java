@@ -252,6 +252,19 @@ public interface Manager<K, O> {
 
     /**
      * Call an {@code action} for each key-value pair.
+     * <p>
+     * Iteration starts from the keys present at the call start. Non-concurrent implementations
+     * traverse a snapshot of the key set: a key added during the call is not processed.
+     * Concurrent implementations traverse a live weakly-consistent view: a key added during the
+     * call may or may not be processed. A key removed before it is reached is skipped either way.
+     * Modification of the manager from {@code action} (for example, {@code remove}) is safe — no
+     * {@code ConcurrentModificationException} is thrown.
+     * <p>
+     * The value is passed to {@code action} without retention: a concurrent {@code remove} may
+     * stop and destroy the object before or during {@code action} — liveness checks are the
+     * action's responsibility. A retaining counterpart is
+     * {@link UsageCountingManager#forEach(java.util.function.Consumer)} (its retention is limited,
+     * see that method's contract).
      *
      * @param action action
      */

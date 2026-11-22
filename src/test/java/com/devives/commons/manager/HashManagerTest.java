@@ -16,6 +16,7 @@
  */
 package com.devives.commons.manager;
 
+import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.function.FailableConsumer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
@@ -763,7 +764,7 @@ public class HashManagerTest {
      * из менеджера в finally-блоке деинициализации (CM-21), поэтому после броска менеджер пуст.
      * <p>
      * Класс наследуется {@code ConcurrentHashManagerTest}, поэтому протокол проверяется и на снимке
-     * ключей (база), и на слабосогласованном live-view (оверрайд {@code keysForBulkRemoval}).
+     * ключей (база), и на слабосогласованном live-view (оверрайд {@code keysForIteration}).
      */
     @Nested
     protected class BulkRemovalTest {
@@ -824,6 +825,85 @@ public class HashManagerTest {
                 public void destroyObject(String object) {
                 }
             });
+        }
+    }
+
+    /**
+     * Идиома «пройтись и выкинуть»: {@code forEach} обходит источник ключей, переживающий мутацию
+     * карты во время итерации ({@code keysForIteration}: снимок у небезопасных карт,
+     * слабосогласованное live-view у конкурентных), поэтому мутация из action не бросает
+     * {@code ConcurrentModificationException} (CM-12). Класс наследуется
+     * {@code ConcurrentHashManagerTest} — проверены обе реализации.
+     */
+    @Nested
+    protected class ForEachTest {
+
+        @Test
+        public void forEach_actionRemovesCurrentKey_completesWithoutCME() throws Exception {
+            forManager(manager -> {
+                manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                manager.computeIfAbsent("Item2", SimpleTestItem::new);
+                manager.computeIfAbsent("Item3", SimpleTestItem::new);
+                manager.forEach((key, value) -> {
+                    try {
+                        manager.remove(key);
+                    } catch (Exception e) {
+                        throw ExceptionUtils.asUnchecked(e);
+                    }
+                });
+                Assertions.assertTrue(manager.isEmpty());
+            });
+        }
+
+        /**
+         * Добавленный из action ключ: снимок его не посетит, слабосогласованное live-view —
+         * может посетить. Проверяется только гарантированная часть (контракт {@code Manager#forEach}).
+         */
+        @Test
+        public void forEach_actionAddsKey_weaklyConsistentVisitResult() throws Exception {
+            forManager(manager -> {
+                manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                manager.computeIfAbsent("Item2", SimpleTestItem::new);
+                manager.computeIfAbsent("Item3", SimpleTestItem::new);
+                final AtomicInteger visited = new AtomicInteger();
+                manager.forEach((key, value) -> {
+                    try {
+                        if (visited.incrementAndGet() == 1) {
+                            manager.computeIfAbsent("NewItem", () -> new SimpleTestItem());
+                        }
+                    } catch (Exception e) {
+                        throw ExceptionUtils.asUnchecked(e);
+                    }
+                });
+                Assertions.assertTrue(visited.get() >= 3 && visited.get() <= 4,
+                        "visited = " + visited.get());
+                Assertions.assertTrue(manager.containsKey("NewItem"));
+            });
+        }
+
+        /**
+         * Строгий снимок снимковой реализации: добавленный из action ключ не посещается.
+         * Менеджер конструируется напрямую ({@code HashManager}), тест осознанно проверяет
+         * только снимковый контракт на обеих движках.
+         */
+        @Test
+        public void forEach_snapshotIteration_addedKeyNotVisited() throws Exception {
+            final HashManager<String, SimpleTestItem> manager = new HashManager<>();
+            try {
+                manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                manager.computeIfAbsent("Item2", SimpleTestItem::new);
+                manager.computeIfAbsent("Item3", SimpleTestItem::new);
+                final AtomicInteger visited = new AtomicInteger();
+                manager.forEach((key, value) -> {
+                    if (visited.incrementAndGet() == 1) {
+                        manager.computeIfAbsent("NewItem", () -> new SimpleTestItem());
+                    }
+                });
+                Assertions.assertEquals(3, visited.get());
+                Assertions.assertTrue(manager.containsKey("NewItem"));
+            } finally {
+                manager.clear();
+            }
         }
     }
 
@@ -992,7 +1072,7 @@ public class HashManagerTest {
         }
 
         @Override
-        protected Iterable<K> keysForBulkRemoval() {
+        protected Iterable<K> keysForIteration() {
             // LinkedHashMap мутируется при удалении — обход только по снимку.
             return new ArrayList<>(keySet());
         }

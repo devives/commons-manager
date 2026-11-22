@@ -128,7 +128,9 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     @Override
     public void forEach(BiConsumer<? super K, ? super O> action) {
         Objects.requireNonNull(action);
-        keySet().forEach((k) -> {
+        // Источник ключей, переживающий мутацию карты во время итерации (CM-12): снимок для
+        // небезопасных карт, слабосогласованное live-view для конкурентных (см. keysForIteration).
+        keysForIteration().forEach((k) -> {
             O v = doGetIfPresent(k, false);
             if (v != null) {
                 action.accept(k, v);
@@ -636,20 +638,27 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     protected List<O> doRemoveAll() {
         final List<O> removedItemList = new ArrayList<>();
-        doRemoveKeys(keysForBulkRemoval(), removedItemList::add);
+        doRemoveKeys(keysForIteration(), removedItemList::add);
         return removedItemList;
     }
 
     protected void doClear() {
-        doRemoveKeys(keysForBulkRemoval(), null);
+        doRemoveKeys(keysForIteration(), null);
     }
 
     /**
-     * Источник ключей для массового удаления {@link #doRemoveAll()} и {@link #doClear()}.
+     * Источник ключей для обходов, которые обязаны переживать структурные изменения карты во время
+     * итерации: массовое удаление {@link #doRemoveAll()}/{@link #doClear()} и
+     * {@link #forEach(BiConsumer)} (action которого может изменять менеджер).
+     * <p>
+     * Реализации на небезопасных картах (например {@code HashMap}) обязаны вернуть снимок ключей:
+     * обход live-view при изменении карты бросает {@code ConcurrentModificationException}.
+     * Потокобезопасные реализации могут вернуть слабосогласованное live-view — вызывающие не должны
+     * полагаться на то, будут ли добавленные в ходе обхода ключи видны или нет.
      *
-     * @return ключи, удаляемые операцией массового удаления.
+     * @return ключи для обхода, переживающего мутацию карты во время итерации.
      */
-    protected abstract Iterable<K> keysForBulkRemoval();
+    protected abstract Iterable<K> keysForIteration();
 
     /**
      * Протокол массового удаления: удаляет каждый ключ через {@link #doRemove(Object)}, продолжая
@@ -664,7 +673,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      * деинициализации (CM-21), поэтому бросок не оставляет таких ключей; остаётся только ключ,
      * удаление которого отклонировано хуком {@code onEntryRemoving}.
      *
-     * @param keys        удаляемые ключи; допустимо live-view (см. {@link #keysForBulkRemoval()}).
+     * @param keys        удаляемые ключи; допустимо live-view (см. {@link #keysForIteration()}).
      * @param removedSink приёмник удалённых объектов либо {@code null}. Приёмник обязателен только
      *                    там, где список удалённых входит в контракт ({@link #doRemoveAll()});
      *                    {@link #doClear()} передаёт {@code null}: накапливать ссылки на все
