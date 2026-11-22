@@ -188,6 +188,34 @@ public class HashManagerTest {
     }
 
     @Test
+    public void put_absentKey_returnNull() throws Exception {
+        forManager(manager -> {
+            final SimpleTestItem item1 = new SimpleTestItem();
+
+            final SimpleTestItem result = manager.put("Item1", () -> item1);
+
+            Assertions.assertNull(result);
+            Assertions.assertEquals(1, manager.size());
+            Assertions.assertSame(item1, manager.get("Item1"));
+        });
+    }
+
+    @Test
+    public void put_existingKey_returnPreviousInstance() throws Exception {
+        forManager(manager -> {
+            final SimpleTestItem previous = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+            final SimpleTestItem replacement = new SimpleTestItem();
+
+            final SimpleTestItem result = manager.put("Item1", () -> replacement);
+
+            Assertions.assertSame(previous, result);
+            Assertions.assertNotSame(replacement, result);
+            Assertions.assertEquals(1, manager.size());
+            Assertions.assertSame(replacement, manager.get("Item1"));
+        });
+    }
+
+    @Test
     public void values_contains_existingValue_true() throws Exception {
         forManager(manager -> {
             final SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);

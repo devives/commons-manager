@@ -440,6 +440,16 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
         return entryMap_.remove(k);
     }
 
+    /**
+     * Replaces the object associated with the key. The previous object, if present, is deinitialized:
+     * stopped, removed from the manager and destroyed. The new object is created, started and published
+     * under the key.
+     * <p>
+     * Similarly to {@link java.util.Map#put(Object, Object)}, the method returns the previous object.
+     * The new object can be obtained by {@link #get(Object)} or {@link #getIfPresent(Object)}.
+     *
+     * @return the previous instance of {@code O} if it was present, otherwise {@code null}.
+     */
     protected final O doReplace(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) throws Exception {
         O result = null;
         final Lock entryLock = acquireLock(key);
@@ -449,12 +459,12 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                 Entry<O> entry = internalGetEntryIfPresent(key);
                 if (entry != null) {
                     if (entry.getObjectAndAdapter() != null) {
+                        result = entry.getObjectAndAdapter().object;
                         doDeinitializeEntry(key, entry);
                     }
                 }
                 entry = Optional.ofNullable(entry).orElseGet(this::doCreateEntry);
                 doInitializeEntry(key, entry, factory, adapter);
-                result = entry.getObjectAndAdapter().object;
             } finally {
                 entryLock.unlockWrite();
             }

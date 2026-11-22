@@ -122,38 +122,46 @@ public interface Manager<K, O> {
 
     /**
      * Put new instance of {@code O} in to manager.
+     * <p>
+     * If the {@code key} is already present, the previous instance is stopped, destroyed and replaced by the new one.
      *
      * @param key     key
      * @param factory the object factory.
-     * @return Previous instance of {@code O} if it's present.
+     * @return the previous instance of {@code O} if it was present, otherwise {@code null}.
      */
     O put(K key, Function<K, O> factory);
 
     /**
      * Put new instance of {@code O} in to manager.
+     * <p>
+     * If the {@code key} is already present, the previous instance is stopped, destroyed and replaced by the new one.
      *
      * @param key     key
      * @param factory the supplier to compute an objects factory.
-     * @return Previous instance of {@code O} if it's present.
+     * @return the previous instance of {@code O} if it was present, otherwise {@code null}.
      */
     O put(K key, ObjectFactory<O> factory);
 
     /**
      * Put new instance of {@code O} in to manager.
+     * <p>
+     * If the {@code key} is already present, the previous instance is stopped, destroyed and replaced by the new one.
      *
      * @param key     key
      * @param factory the supplier to compute an objects factory.
      * @param adapter adapter of {@code <O>} lifecycle to the managed object lifecycle.
-     * @return Previous instance of {@code O} if it's present.
+     * @return the previous instance of {@code O} if it was present, otherwise {@code null}.
      */
     O put(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter);
 
     /**
      * Put new instance of {@code O} in to manager.
+     * <p>
+     * If the {@code key} is already present, the previous instance is stopped, destroyed and replaced by the new one.
      *
      * @param key            key
      * @param managedFactory the supplier to compute an objects factory.
-     * @return Previous instance of {@code O} if it's present.
+     * @return the previous instance of {@code O} if it was present, otherwise {@code null}.
      */
     O put(K key, ManagedFactory<O> managedFactory);
 
@@ -168,7 +176,7 @@ public interface Manager<K, O> {
     /**
      * Remove all instances from manager.
      *
-     * @return a list containing al removed instances.
+     * @return a list containing all removed instances.
      */
     List<O> removeAll();
 
