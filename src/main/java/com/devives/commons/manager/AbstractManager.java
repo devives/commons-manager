@@ -447,6 +447,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      * <p>
      * Similarly to {@link java.util.Map#put(Object, Object)}, the method returns the previous object.
      * The new object can be obtained by {@link #get(Object)} or {@link #getIfPresent(Object)}.
+     * <p>
+     * Replacement is not atomic: {@code doDeinitializeEntry} runs before {@code doInitializeEntry}.
+     * If creation or startup of the new object fails, the previous object is <em>not</em> restored
+     * and the {@code key} is removed from the manager; the failure is not rolled back.
      *
      * @return the previous instance of {@code O} if it was present, otherwise {@code null}.
      */

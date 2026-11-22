@@ -124,6 +124,11 @@ public interface Manager<K, O> {
      * Put new instance of {@code O} in to manager.
      * <p>
      * If the {@code key} is already present, the previous instance is stopped, destroyed and replaced by the new one.
+     * <p>
+     * Replacement is not atomic: the previous instance is deinitialized (stopped, removed, destroyed)
+     * before the new one is created and started. If creation or startup of the new instance fails,
+     * the exception propagates, the previous instance is <em>not</em> restored, and the {@code key}
+     * is no longer associated with a value.
      *
      * @param key     key
      * @param factory the object factory.
@@ -135,6 +140,11 @@ public interface Manager<K, O> {
      * Put new instance of {@code O} in to manager.
      * <p>
      * If the {@code key} is already present, the previous instance is stopped, destroyed and replaced by the new one.
+     * <p>
+     * Replacement is not atomic: the previous instance is deinitialized (stopped, removed, destroyed)
+     * before the new one is created and started. If creation or startup of the new instance fails,
+     * the exception propagates, the previous instance is <em>not</em> restored, and the {@code key}
+     * is no longer associated with a value.
      *
      * @param key     key
      * @param factory the supplier to compute an objects factory.
@@ -146,6 +156,11 @@ public interface Manager<K, O> {
      * Put new instance of {@code O} in to manager.
      * <p>
      * If the {@code key} is already present, the previous instance is stopped, destroyed and replaced by the new one.
+     * <p>
+     * Replacement is not atomic: the previous instance is deinitialized (stopped, removed, destroyed)
+     * before the new one is created and started. If creation or startup of the new instance fails,
+     * the exception propagates, the previous instance is <em>not</em> restored, and the {@code key}
+     * is no longer associated with a value.
      *
      * @param key     key
      * @param factory the supplier to compute an objects factory.
@@ -158,6 +173,11 @@ public interface Manager<K, O> {
      * Put new instance of {@code O} in to manager.
      * <p>
      * If the {@code key} is already present, the previous instance is stopped, destroyed and replaced by the new one.
+     * <p>
+     * Replacement is not atomic: the previous instance is deinitialized (stopped, removed, destroyed)
+     * before the new one is created and started. If creation or startup of the new instance fails,
+     * the exception propagates, the previous instance is <em>not</em> restored, and the {@code key}
+     * is no longer associated with a value.
      *
      * @param key            key
      * @param managedFactory the supplier to compute an objects factory.
