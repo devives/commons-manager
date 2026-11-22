@@ -25,6 +25,7 @@ import org.mockito.Mockito;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 public class HashManagerTest {
@@ -428,6 +429,10 @@ public class HashManagerTest {
         return new HashManager<>(defaultAdapter);
     }
 
+    protected <K, O> Manager<K, O> newManager(ManagedAdapter<O> defaultAdapter, Manager.Hooks<K, O> hooks) {
+        return new HashManager<>(defaultAdapter, hooks);
+    }
+
     protected <K, O> Manager<K, O> newTrackingManager(AtomicInteger gotCounter) {
         return new HashManager<K, O>() {
             @Override
@@ -435,6 +440,198 @@ public class HashManagerTest {
                 gotCounter.incrementAndGet();
             }
         };
+    }
+
+    /**
+     * Реентраные мутации того же ключа из пользовательских коллбэков (фабрика, адаптер, хуки),
+     * выполняемые под той же блокировкой тем же потоком, запрещены: они повторяли бы уже идущую
+     * фазу жизненного цикла по захваченным ссылкам (CM-07, CM-08, CM-18, CM-32).
+     * Реентраное чтение ({@code get}/{@code getIfPresent}) и мутации других ключей разрешены.
+     */
+    @Nested
+    public class ReentrantTransitionTest {
+
+        @Test
+        public void reentrantRemove_fromFactory_rejectedAndNothingCreated() throws Exception {
+            final RecordingAdapter adapter = new RecordingAdapter();
+            final AtomicReference<Manager<String, SimpleTestItem>> managerRef = new AtomicReference<>();
+            final Manager<String, SimpleTestItem> manager = newManager(adapter);
+            managerRef.set(manager);
+            try {
+                Assertions.assertThrows(ManagerException.class, () -> manager.computeIfAbsent("Item1", () -> {
+                    managerRef.get().remove("Item1");
+                    return new SimpleTestItem();
+                }));
+                Assertions.assertEquals(0, manager.size());
+                Assertions.assertFalse(manager.containsKey("Item1"));
+                Assertions.assertTrue(adapter.journal_.isEmpty());
+            } finally {
+                manager.clear();
+            }
+        }
+
+        @Test
+        public void reentrantPut_fromFactory_rejectedAndNothingCreated() throws Exception {
+            final RecordingAdapter adapter = new RecordingAdapter();
+            final AtomicReference<Manager<String, SimpleTestItem>> managerRef = new AtomicReference<>();
+            final Manager<String, SimpleTestItem> manager = newManager(adapter);
+            managerRef.set(manager);
+            try {
+                Assertions.assertThrows(ManagerException.class, () -> manager.computeIfAbsent("Item1", () -> {
+                    managerRef.get().put("Item1", SimpleTestItem::new);
+                    return new SimpleTestItem();
+                }));
+                Assertions.assertEquals(0, manager.size());
+                Assertions.assertTrue(adapter.journal_.isEmpty());
+            } finally {
+                manager.clear();
+            }
+        }
+
+        @Test
+        public void reentrantComputeIfAbsent_fromFactory_rejectedAndNoOrphanObject() throws Exception {
+            final RecordingAdapter adapter = new RecordingAdapter();
+            final AtomicReference<Manager<String, SimpleTestItem>> managerRef = new AtomicReference<>();
+            final Manager<String, SimpleTestItem> manager = newManager(adapter);
+            managerRef.set(manager);
+            try {
+                Assertions.assertThrows(ManagerException.class, () -> manager.computeIfAbsent("Item1", () -> {
+                    managerRef.get().computeIfAbsent("Item1", SimpleTestItem::new);
+                    return new SimpleTestItem();
+                }));
+                Assertions.assertEquals(0, manager.size());
+                // До фикса здесь оставался сиротый запущенный объект второй записи: start без stop/destroy.
+                Assertions.assertTrue(adapter.journal_.isEmpty());
+            } finally {
+                manager.clear();
+            }
+        }
+
+        @Test
+        public void reentrantRemove_fromOnObjectStarting_rejectedAndInitRolledBack() throws Exception {
+            final RecordingAdapter adapter = new RecordingAdapter();
+            final AtomicReference<Manager<String, SimpleTestItem>> managerRef = new AtomicReference<>();
+            final Manager<String, SimpleTestItem> manager = newManager(adapter, new Manager.Hooks<String, SimpleTestItem>() {
+                @Override
+                public void onObjectStarting(SimpleTestItem object) throws Exception {
+                    managerRef.get().remove("Item1");
+                }
+            });
+            managerRef.set(manager);
+            try {
+                Assertions.assertThrows(ManagerException.class, () -> manager.computeIfAbsent("Item1", SimpleTestItem::new));
+                Assertions.assertEquals(0, manager.size());
+                Assertions.assertFalse(manager.containsKey("Item1"));
+                // Старт не был выполнен — откат инициализации обязан уничтожить созданный объект ровно один раз.
+                Assertions.assertEquals(Collections.singletonList("destroy"), adapter.journal_);
+            } finally {
+                manager.clear();
+            }
+        }
+
+        @Test
+        public void reentrantRemove_fromOnObjectStarted_rejectedAndInitRolledBackOnce() throws Exception {
+            final RecordingAdapter adapter = new RecordingAdapter();
+            final AtomicReference<Manager<String, SimpleTestItem>> managerRef = new AtomicReference<>();
+            final Manager<String, SimpleTestItem> manager = newManager(adapter, new Manager.Hooks<String, SimpleTestItem>() {
+                @Override
+                public void onObjectStarted(SimpleTestItem object) throws Exception {
+                    managerRef.get().remove("Item1");
+                }
+            });
+            managerRef.set(manager);
+            try {
+                Assertions.assertThrows(ManagerException.class, () -> manager.computeIfAbsent("Item1", SimpleTestItem::new));
+                Assertions.assertEquals(0, manager.size());
+                // Ровно один stop и один destroy: откат инициализации не должен дублироваться
+                // внешним потоком по захваченным ссылкам (CM-18).
+                Assertions.assertEquals(Arrays.asList("start", "stop", "destroy"), adapter.journal_);
+            } finally {
+                manager.clear();
+            }
+        }
+
+        @Test
+        public void reentrantRemove_fromOnObjectStopping_rejectedAndDeinitRunsOnce() throws Exception {
+            final RecordingAdapter adapter = new RecordingAdapter();
+            final AtomicReference<Manager<String, SimpleTestItem>> managerRef = new AtomicReference<>();
+            final Manager<String, SimpleTestItem> manager = newManager(adapter, new Manager.Hooks<String, SimpleTestItem>() {
+                @Override
+                public void onObjectStopping(SimpleTestItem object) throws Exception {
+                    managerRef.get().remove("Item1");
+                }
+            });
+            managerRef.set(manager);
+            try {
+                manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                Assertions.assertThrows(ManagerException.class, () -> manager.remove("Item1"));
+                Assertions.assertEquals(0, manager.size());
+                // Вложенный remove отклонён — внешний deinit проходит ровно один раз (CM-08).
+                Assertions.assertEquals(Arrays.asList("start", "stop", "destroy"), adapter.journal_);
+            } finally {
+                manager.clear();
+            }
+        }
+
+        @Test
+        public void reentrantGet_fromOnObjectStarting_returnsPublishedObject() throws Exception {
+            final RecordingAdapter adapter = new RecordingAdapter();
+            final AtomicReference<Manager<String, SimpleTestItem>> managerRef = new AtomicReference<>();
+            final Manager<String, SimpleTestItem> manager = newManager(adapter, new Manager.Hooks<String, SimpleTestItem>() {
+                @Override
+                public void onObjectStarting(SimpleTestItem object) throws Exception {
+                    Assertions.assertSame(object, managerRef.get().get("Item1"));
+                }
+            });
+            managerRef.set(manager);
+            try {
+                final SimpleTestItem item = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                Assertions.assertNotNull(item);
+                Assertions.assertEquals(1, manager.size());
+            } finally {
+                manager.clear();
+            }
+        }
+
+        @Test
+        public void crossKeyRemove_fromFactory_allowed() throws Exception {
+            final RecordingAdapter adapter = new RecordingAdapter();
+            final Manager<String, SimpleTestItem> manager = newManager(adapter);
+            try {
+                manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                final SimpleTestItem item2 = manager.computeIfAbsent("Item2", () -> {
+                    manager.remove("Item1");
+                    return new SimpleTestItem();
+                });
+                Assertions.assertNotNull(item2);
+                Assertions.assertFalse(manager.containsKey("Item1"));
+                Assertions.assertTrue(manager.containsKey("Item2"));
+                Assertions.assertEquals(Arrays.asList("start", "stop", "destroy", "start"), adapter.journal_);
+            } finally {
+                manager.clear();
+            }
+        }
+    }
+
+    @Test
+    public void reentrantRemove_fromOnEntryGot_staysLegalForCompleteEntry() throws Exception {
+        // onEntryGot не является фазой перехода: запись полная, remove того же ключа остаётся
+        // легальной операцией (гейт транзитов его не ловит). HashManager с noop-локом — сценарий
+        // не про дедлок write-over-read (CM-09), а именно про отсутствие блокировки гейтом.
+        final HashManager<String, SimpleTestItem> manager = new HashManager<String, SimpleTestItem>() {
+            private final AtomicInteger gotCount_ = new AtomicInteger();
+
+            @Override
+            protected void onEntryGot(Entry<SimpleTestItem> entry) {
+                if (gotCount_.incrementAndGet() > 1) {
+                    remove("Item1");
+                }
+            }
+        };
+        manager.computeIfAbsent("Item1", SimpleTestItem::new);
+        manager.getIfPresent("Item1");
+        manager.getIfPresent("Item1");
+        Assertions.assertEquals(0, manager.size());
     }
 
     protected void forManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {
@@ -541,6 +738,25 @@ public class HashManagerTest {
             }
 
         };
+    }
+
+    private static class RecordingAdapter implements ManagedAdapter<SimpleTestItem> {
+        final List<String> journal_ = Collections.synchronizedList(new ArrayList<>());
+
+        @Override
+        public void startObject(SimpleTestItem object) throws Exception {
+            journal_.add("start");
+        }
+
+        @Override
+        public void stopObject(SimpleTestItem object) throws Exception {
+            journal_.add("stop");
+        }
+
+        @Override
+        public void destroyObject(SimpleTestItem object) throws Exception {
+            journal_.add("destroy");
+        }
     }
 
     private static class TestCloseableItemToManagedAdapter implements ManagedAdapter<TestCloseableItem> {

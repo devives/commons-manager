@@ -20,6 +20,8 @@ import com.devives.commons.lang.function.FailableConsumer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 public class UsageCountingManagerTest {
 
     @Test
@@ -59,6 +61,32 @@ public class UsageCountingManagerTest {
             manager.release("Item1");
             SimpleTestItem item1_1 = manager.acquire("Item1", SimpleTestItem::new);
             Assertions.assertNotEquals(item1, item1_1);
+        });
+    }
+
+    /**
+     * Деинициализация из {@code release} идёт через {@code doRemoveEntry}/{@code doDeinitializeEntry}
+     * мимо {@code doRemove} — вложенные мутации того же ключа из {@code onEntryRemoving}/слушателя
+     * должны отклоняться и на этом пути (CM-08).
+     */
+    @Test
+    public void release_reentrantRemoveFromBeforeRemoveItemListener_rejected() throws Exception {
+        forTestManager(manager -> {
+            final AtomicReference<Throwable> nestedError = new AtomicReference<>();
+            manager.acquire("Item1", SimpleTestItem::new);
+            manager.addListener(new UsageCountingManager.Listener<SimpleTestItem>() {
+                @Override
+                public void afterAddItem(SimpleTestItem object) {
+                }
+
+                @Override
+                public void beforeRemoveItem(SimpleTestItem object) {
+                    nestedError.set(Assertions.assertThrows(ManagerException.class, () -> manager.remove("Item1")));
+                }
+            });
+            manager.release("Item1");
+            Assertions.assertNotNull(nestedError.get());
+            Assertions.assertTrue(manager.isEmpty());
         });
     }
 

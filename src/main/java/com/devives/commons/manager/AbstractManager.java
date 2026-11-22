@@ -41,6 +41,23 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     private final ManagedAdapter<O> defaultAdapter_;
     private final Hooks<K, O> hooks_;
     /**
+     * Keys whose entry is in a lifecycle transition (initialization or de-initialization) currently
+     * running on the calling thread.
+     * <p>
+     * Cross-thread access to a transitioning entry is already excluded by the per-key write lock, so this
+     * per-thread registry guards the only remaining window: a reentrant operation on the same key from a
+     * user callback (factory, adapter, hook or listener) running in the same thread under the same lock.
+     * Such an operation would repeat an already running phase over captured references — double
+     * stop/destroy, an orphaned second object, or an NPE over an entry cleared by the nested call — so it
+     * is rejected with {@link ManagerException} instead.
+     * <p>
+     * Registration is done by the chokepoints of both transitions, {@link #doInitializeEntry(Object, Entry,
+     * ObjectFactory, ManagedAdapter)} and {@link #doDeinitializeEntry(Object, Entry)}; the operation entry
+     * points {@code doComputeIfAbsent}/{@code doReplace}/{@code doRemove} only check the set. Reentrant
+     * reads ({@code get}/{@code getIfPresent}) are not gated.
+     */
+    private final ThreadLocal<Set<K>> transitioningKeys_ = ThreadLocal.withInitial(HashSet::new);
+    /**
      * The cached values view. The field is intentionally non-volatile: done similarly to
      * {@code java.util.concurrent.ConcurrentHashMap#values()}, which caches its view fields
      * ({@code keySet}, {@code values}, {@code entrySet}) in plain transient fields as well.
@@ -357,6 +374,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     }
 
     protected final O doComputeIfAbsent(final K key, final ObjectFactory<O> factory, final ManagedAdapter<O> adapter) throws Exception {
+        assertKeyNotTransitioning(key);
         O result = null;
         final Lock entryLock = acquireLock(key);
         try {
@@ -453,8 +471,11 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      * and the {@code key} is removed from the manager; the failure is not rolled back.
      *
      * @return the previous instance of {@code O} if it was present, otherwise {@code null}.
+     * @throws ManagerException if {@code key} is already in a lifecycle transition performed by the
+     *                          current thread (reentrant replacement of a key being initialized or removed).
      */
     protected final O doReplace(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) throws Exception {
+        assertKeyNotTransitioning(key);
         O result = null;
         final Lock entryLock = acquireLock(key);
         try {
@@ -462,8 +483,9 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
             try {
                 Entry<O> entry = internalGetEntryIfPresent(key);
                 if (entry != null) {
-                    if (entry.getObjectAndAdapter() != null) {
-                        result = entry.getObjectAndAdapter().object;
+                    ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
+                    if (objectAndAdapter != null) {
+                        result = objectAndAdapter.object;
                         doDeinitializeEntry(key, entry);
                     }
                 }
@@ -490,41 +512,51 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      * @throws Exception if creation or any subsequent initialization stage fails
      */
     protected final void doInitializeEntry(K key, Entry<O> entry, ObjectFactory<O> factory, ManagedAdapter<O> adapter) throws Exception {
-        final O object = doObjectCreate(factory, adapter, key);
-        Try.runnable(() -> {
-            entry.initObjectAndAdapter(object, adapter);
-            // Помещаю Entry в карту до вызова #doStartObject(), что бы текущий поток, при
-            // рекурсивном вызове текущего метода, мог получить ссылку на этот Entry.
-            internalPutEntry(key, entry);
+        beginKeyTransition(key);
+        try {
+            final O object = doObjectCreate(factory, adapter, key);
             Try.runnable(() -> {
-                doStartObject(object, adapter);
+                entry.initObjectAndAdapter(object, adapter);
+                // Помещаю Entry в карту до вызова #doStartObject(), что бы текущий поток, при
+                // рекурсивном вызове текущего метода, мог получить ссылку на этот Entry.
+                internalPutEntry(key, entry);
                 Try.runnable(() -> {
-                    doEntryAdded(entry);
+                    doStartObject(object, adapter);
+                    Try.runnable(() -> {
+                        doEntryAdded(entry);
+                    }).onCatch((th) -> {
+                        doStopObject(object, adapter);
+                        throw th;
+                    }).run();
                 }).onCatch((th) -> {
-                    doStopObject(object, adapter);
+                    internalRemoveAndClearEntry(key);
                     throw th;
                 }).run();
             }).onCatch((th) -> {
-                internalRemoveAndClearEntry(key);
+                internalDestroyObject(object, adapter);
                 throw th;
             }).run();
-        }).onCatch((th) -> {
-            internalDestroyObject(object, adapter);
-            throw th;
-        }).run();
+        } finally {
+            endKeyTransition(key);
+        }
     }
 
     protected final void doDeinitializeEntry(K key, Entry<O> entry) throws Exception {
-        final ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
-        doEntryRemoving(entry);
-        Try.runnable(() -> {
-            doStopObject(objectAndAdapter.object, objectAndAdapter.adapter);
-        }).doFinally(() -> {
-            ExceptionUtils.collectAndThrow(
-                    () -> internalRemoveAndClearEntry(key),
-                    () -> internalDestroyObject(objectAndAdapter.object, objectAndAdapter.adapter)
-            );
-        }).run();
+        beginKeyTransition(key);
+        try {
+            final ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
+            doEntryRemoving(entry);
+            Try.runnable(() -> {
+                doStopObject(objectAndAdapter.object, objectAndAdapter.adapter);
+            }).doFinally(() -> {
+                ExceptionUtils.collectAndThrow(
+                        () -> internalRemoveAndClearEntry(key),
+                        () -> internalDestroyObject(objectAndAdapter.object, objectAndAdapter.adapter)
+                );
+            }).run();
+        } finally {
+            endKeyTransition(key);
+        }
     }
 
     protected final <E extends Entry<O>> E doCreateEntry() {
@@ -554,6 +586,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     }
 
     protected O doRemove(K key) throws Exception {
+        assertKeyNotTransitioning(key);
         O result = null;
         Entry<O> entry = internalGetEntryIfPresent(key);
         if (entry != null) {
@@ -614,6 +647,42 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     protected final void releaseLock(K key) {
         lockSource_.release(key);
+    }
+
+    /**
+     * Marks the key as transitioning on the current thread for the scope of a lifecycle transition.
+     *
+     * @param key entry key
+     * @throws ManagerException if the key is already transitioning on the current thread, i.e. the call is
+     *                          a reentrant entry into a transition (see {@link #transitioningKeys_})
+     */
+    private void beginKeyTransition(K key) throws ManagerException {
+        if (!transitioningKeys_.get().add(key)) {
+            throw transitioningKeyError(key);
+        }
+    }
+
+    private void endKeyTransition(K key) {
+        final Set<K> keys = transitioningKeys_.get();
+        keys.remove(key);
+        if (keys.isEmpty()) {
+            // Do not retain an empty set on pooled threads after the last transition of the scope.
+            transitioningKeys_.remove();
+        }
+    }
+
+    private void assertKeyNotTransitioning(K key) throws ManagerException {
+        if (transitioningKeys_.get().contains(key)) {
+            throw transitioningKeyError(key);
+        }
+    }
+
+    private ManagerException transitioningKeyError(K key) {
+        return new ManagerException(String.format(
+                "The key '%s' is in a lifecycle transition performed by the current operation."
+                        + " Reentrant modification of the same key from a factory, adapter, hook or listener is forbidden."
+                        + " Throw an exception to cancel the ongoing operation; use get()/getIfPresent() for reentrant read access.",
+                key));
     }
 
     protected final void doEntryGot(Entry<O> entry) {

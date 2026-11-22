@@ -39,6 +39,11 @@ public class ConcurrentHashManagerTest extends HashManagerTest {
     }
 
     @Override
+    protected <K, O> Manager<K, O> newManager(ManagedAdapter<O> defaultAdapter, Manager.Hooks<K, O> hooks) {
+        return new ConcurrentHashManager<>(defaultAdapter, hooks);
+    }
+
+    @Override
     protected <K, O> Manager<K, O> newTrackingManager(AtomicInteger gotCounter) {
         return new ConcurrentHashManager<K, O>() {
             private static final long serialVersionUID = 1L;
