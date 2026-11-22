@@ -243,7 +243,7 @@ public class UsageCountingManager<K, O> {
      *
      * @param listener слушатель.
      */
-    public void addListener(UsageCountingManager.Listener listener) {
+    public void addListener(UsageCountingManager.Listener<O> listener) {
         internalManager_.addListener(listener);
     }
 
@@ -252,7 +252,7 @@ public class UsageCountingManager<K, O> {
      *
      * @param listener слушатель.
      */
-    public void removeListener(UsageCountingManager.Listener listener) {
+    public void removeListener(UsageCountingManager.Listener<O> listener) {
         internalManager_.removeListener(listener);
     }
 
