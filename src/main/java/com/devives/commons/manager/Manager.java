@@ -259,51 +259,168 @@ public interface Manager<K, O> {
 
     /**
      * Hook methods invoked by a manager during managed object lifecycle operations.
+     * <p>
+     * Hooks run synchronously inside a lifecycle transition of the key, under the lock for this key.
+     * Throwing is a supported way to influence the transition; exceptions propagate to the caller of
+     * the public operation as-is, per the module exception policy (checked exceptions from user
+     * callbacks are not wrapped).
+     * <p>
+     * Reentrant modification of the same key from a hook is rejected: the key is in a lifecycle
+     * transition, and {@link #computeIfAbsent(Object, ObjectFactory)}, {@link #put(Object, ObjectFactory)}
+     * and {@link #remove(Object)} (as well as {@code release} of a usage-counting manager) throw
+     * {@link ManagerException} for it. To cancel or roll back the ongoing transition, throw from the
+     * hook instead. Reentrant reads ({@link #get(Object)}, {@link #getIfPresent(Object)}) are allowed.
+     * The same rules apply to the {@link ManagedAdapter} callbacks invoked around these hooks.
      *
      * @param <K> type of key
      * @param <O> type of managed object
      */
     interface Hooks<K, O> {
 
+        /**
+         * Called after the factory has successfully created the object, before the object is bound
+         * to the entry and published in the manager.
+         * <p>
+         * If this method throws, the object is destroyed via {@link ManagedAdapter#destroyObject(Object)},
+         * the creation fails, nothing is published under the key, and the exception propagates to the caller.
+         *
+         * @param key    key of the object being created
+         * @param object the newly created object
+         */
         default void onObjectCreated(K key, O object) throws Exception {
 
         }
 
+        /**
+         * Called before {@link ManagedAdapter#startObject(Object)}. At this moment the object is already
+         * bound to the entry and the entry is published in the manager, so that a reentrant read from
+         * the current thread (see {@link #get(Object)}) can obtain the object.
+         * <p>
+         * If this method throws, {@link #onObjectFailure(Object, Throwable)} is notified with this
+         * exception, the entry is removed from the manager, the object is destroyed, and the exception
+         * propagates to the caller — the transition is rolled back.
+         *
+         * @param object the object being started
+         */
         default void onObjectStarting(O object) throws Exception {
 
         }
 
+        /**
+         * Called after {@link ManagedAdapter#startObject(Object)} completed successfully.
+         * <p>
+         * If this method throws, the object is stopped (stop hooks and
+         * {@link ManagedAdapter#stopObject(Object)} run), {@link #onObjectFailure(Object, Throwable)}
+         * is notified, the entry is removed from the manager, the object is destroyed, and the exception
+         * propagates to the caller — the transition is rolled back.
+         *
+         * @param object the started object
+         */
         default void onObjectStarted(O object) throws Exception {
 
         }
 
+        /**
+         * Called when starting or stopping the object failed, with the failure cause.
+         * <p>
+         * If this method throws, its exception becomes the primary one and the original failure is
+         * attached to it as suppressed.
+         *
+         * @param object     the object whose start or stop failed
+         * @param throwable  the failure cause
+         */
         default void onObjectFailure(O object, Throwable throwable) throws Exception {
 
         }
 
+        /**
+         * Called before {@link ManagedAdapter#stopObject(Object)}. Both run in a collecting scope: if
+         * this method throws, the adapter stop and {@link #onObjectStopped(Object)} are still attempted
+         * and the exceptions are aggregated.
+         * <p>
+         * A stop-phase exception does not cancel the removal: during deinitialization the entry is
+         * removed and the object is destroyed regardless, and the aggregated exception propagates to
+         * the caller. During rollback of a failed initialization a stop failure additionally notifies
+         * {@link #onObjectFailure(Object, Throwable)}.
+         *
+         * @param object the object being stopped
+         */
         default void onObjectStopping(O object) throws Exception {
 
         }
 
+        /**
+         * Called after {@link ManagedAdapter#stopObject(Object)}, in the same collecting scope as
+         * {@link #onObjectStopping(Object)}.
+         *
+         * @param object the stopped object
+         */
         default void onObjectStopped(O object) throws Exception {
 
         }
 
+        /**
+         * Called before {@link ManagedAdapter#destroyObject(Object)}. The three destroy-phase callbacks
+         * ({@code onObjectDestroying}, the adapter destroy, {@link #onObjectDestroyed(Object)}) all run
+         * even if one of them throws; the exceptions are aggregated and thrown to the caller.
+         * <p>
+         * By this point the transition has passed the point of no return — throwing here does not
+         * undo the removal of the entry.
+         *
+         * @param object the object being destroyed
+         */
         default void onObjectDestroying(O object) throws Exception {
 
         }
 
+        /**
+         * Called after {@link ManagedAdapter#destroyObject(Object)}, in the same collecting scope as
+         * {@link #onObjectDestroying(Object)}.
+         *
+         * @param object the destroyed object
+         */
         default void onObjectDestroyed(O object) throws Exception {
 
         }
     }
 
+    /**
+     * Provider of per-key locks used by the manager to serialize lifecycle operations on the same key.
+     *
+     * @param <K> type of key
+     */
     interface LockSource<K> {
+
+        /**
+         * Acquires the lock for the key. Every call must be paired with {@link #release(Object)}
+         * in a {@code finally} block. Implementations may keep a single lock instance per key while
+         * it is acquired (the standard sources do).
+         *
+         * @param key key
+         * @return lock instance for the key
+         */
         Lock acquire(K key);
 
+        /**
+         * Releases the lock instance previously returned by {@link #acquire(Object)} for the key.
+         *
+         * @param key key
+         */
         void release(K key);
     }
 
+    /**
+     * Per-key lock used by the manager. Implementations must support the lock usage patterns
+     * of the manager:
+     * <ul>
+     * <li>recursive {@link #lockRead()} acquisitions by the same thread;</li>
+     * <li>{@link #lockRead()}/{@link #unlockRead()} by the thread that holds the write lock —
+     * the manager performs reentrant reads (see {@link #get(Object)}, {@link #getIfPresent(Object)})
+     * from user callbacks while holding the write lock;</li>
+     * <li>balanced {@link #upgradeLock()}/{@link #downgradeLock()} transitions described in their
+     * contracts.</li>
+     * </ul>
+     */
     interface Lock {
 
         void lockRead();
@@ -314,8 +431,33 @@ public interface Manager<K, O> {
 
         void unlockWrite();
 
+        /**
+         * Upgrades the read lock held by the current thread to the write lock.
+         * <p>
+         * The method is called by a thread holding the read lock it gives up. On normal return the
+         * thread must hold the write lock and must no longer hold that read acquisition: the manager
+         * calls {@link #downgradeLock()} in a {@code finally} right after the upgraded section, and
+         * {@link #unlockRead()} exactly once at the outer level.
+         * <p>
+         * <strong>Throwing contract.</strong> If this method throws, the manager skips the paired
+         * {@code downgradeLock()}, but the enclosing {@code finally} block still calls
+         * {@link #unlockRead()} exactly once. An implementation that drops the read acquisition
+         * before a step that can throw must therefore be self-recovering: before rethrowing, it must
+         * either keep the read acquisition held or re-acquire the read lock, so that this single
+         * {@code unlockRead()} balances the state. Throwing after dropping the read lock without
+         * restoring it silently corrupts the per-key mutual exclusion for all subsequent operations
+         * (CM-21). The standard sources ({@code RWLockSource}, {@code SyncLockSource}) never throw
+         * from here; third-party implementations must honor this balance rule.
+         */
         void upgradeLock();
 
+        /**
+         * Downgrades the write lock acquired via {@link #upgradeLock()} back to the read lock.
+         * <p>
+         * The method is called by the thread holding that write lock, in a {@code finally} block.
+         * On return the thread must hold exactly the read acquisition it had before the upgrade, so
+         * that the manager's outer {@link #unlockRead()} balances it.
+         */
         void downgradeLock();
     }
 

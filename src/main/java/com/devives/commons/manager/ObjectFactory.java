@@ -40,6 +40,14 @@ public interface ObjectFactory<O> {
      * SimpleTestItem item1 = manager.computeIfAbsent(key, () -> new SimpleTestItem(key, manager));
      * }</pre>
      *
+     * <p><strong>Execution context.</strong></p>
+     * The factory is invoked while the manager holds the lock for the key, inside a lifecycle transition
+     * of that key. It must not modify the same key: a reentrant {@code computeIfAbsent}/{@code put}/
+     * {@code remove} from the factory throws {@link ManagerException}; reentrant reads via
+     * {@link Manager#get(Object)} and {@link Manager#getIfPresent(Object)} are allowed.
+     * Returning {@code null} fails the creation with {@link NullPointerException}; throwing cancels
+     * the creation and the exception propagates to the caller as-is.
+     *
      * @return new instance of <code>&lt;O&gt;</code>.
      * @throws Exception if creation failed.
      */
