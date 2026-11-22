@@ -18,6 +18,8 @@ package com.devives.commons.manager;
 
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.call.Try;
+import com.devives.commons.lang.function.FailableFunction1;
+import com.devives.commons.lang.function.FailableSupplier;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -345,10 +347,8 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     }
 
     protected O doGet(K key) {
-        final Lock entryLock = acquireLock(key);
         try {
-            entryLock.lockRead();
-            try {
+            return withKeyLock(key, entryLock -> withReadLock(entryLock, () -> {
                 O result = null;
                 final Entry<O> entry = internalGetEntryIfPresent(key);
                 if (entry != null) {
@@ -358,11 +358,9 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                     }
                 }
                 return result;
-            } finally {
-                entryLock.unlockRead();
-            }
-        } finally {
-            releaseLock(key);
+            }));
+        } catch (Exception e) {
+            throw ExceptionUtils.asUnchecked(e);
         }
     }
 
@@ -377,20 +375,17 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
         // Optimistically get entry without lock.
         final Entry<O> entry = internalGetEntryIfPresent(key);
         if (entry != null) {
-            final Lock entryLock = acquireLock(key);
             try {
-                entryLock.lockRead();
-                try {
-                    result = entry.getObject();
+                result = withKeyLock(key, entryLock -> withReadLock(entryLock, () -> {
                     // If object non set, it's equals entry not present.
-                    if (notify && result != null) {
+                    final O object = entry.getObject();
+                    if (notify && object != null) {
                         notifyEntryGot(key, entry);
                     }
-                } finally {
-                    entryLock.unlockRead();
-                }
-            } finally {
-                releaseLock(key);
+                    return object;
+                }));
+            } catch (Exception e) {
+                throw ExceptionUtils.asUnchecked(e);
             }
         }
         return result;
@@ -399,38 +394,23 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     protected final O doComputeIfAbsent(final K key, final ObjectFactory<O> factory, final ManagedAdapter<O> adapter) throws Exception {
         assertKeyNotTransitioning(key);
         assertKeyNotInEntryGotCallback(key);
-        O result = null;
-        final Lock entryLock = acquireLock(key);
-        try {
-            entryLock.lockRead();
-            try {
-                Entry<O> entry = internalGetEntryIfPresent(key);
-                if (entry == null) {
-                    entryLock.upgradeLock();
-                    try {
-                        entry = Optional.ofNullable(internalGetEntryIfPresent(key)).orElseGet(this::doCreateEntry);
-                        assert entry != null;
-                        if (entry.getObjectAndAdapter() == null) {
-                            doInitializeEntry(key, entry, factory, adapter);
-                        } else {
-                            notifyEntryGot(key, entry);
-                        }
-                        result = entry.getObjectAndAdapter().object;
-                    } finally {
-                        // Downgrade lock.
-                        entryLock.downgradeLock();
-                    }
-                } else {
-                    notifyEntryGot(key, entry);
-                    result = entry.getObjectAndAdapter().object;
-                }
-            } finally {
-                entryLock.unlockRead();
+        return withKeyLock(key, entryLock -> withReadLock(entryLock, () -> {
+            Entry<O> entry = internalGetEntryIfPresent(key);
+            if (entry != null) {
+                notifyEntryGot(key, entry);
+                return entry.getObjectAndAdapter().object;
             }
-        } finally {
-            releaseLock(key);
-        }
-        return result;
+            return withUpgradedLock(entryLock, () -> {
+                Entry<O> upgradedEntry = Optional.ofNullable(internalGetEntryIfPresent(key)).orElseGet(this::doCreateEntry);
+                assert upgradedEntry != null;
+                if (upgradedEntry.getObjectAndAdapter() == null) {
+                    doInitializeEntry(key, upgradedEntry, factory, adapter);
+                } else {
+                    notifyEntryGot(key, upgradedEntry);
+                }
+                return upgradedEntry.getObjectAndAdapter().object;
+            });
+        }));
     }
 
     private ManagedAdapter<O> getDefaultAdapter() {
@@ -503,28 +483,20 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     protected final O doReplace(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) throws Exception {
         assertKeyNotTransitioning(key);
         assertKeyNotInEntryGotCallback(key);
-        O result = null;
-        final Lock entryLock = acquireLock(key);
-        try {
-            entryLock.lockWrite();
-            try {
-                Entry<O> entry = internalGetEntryIfPresent(key);
-                if (entry != null) {
-                    ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
-                    if (objectAndAdapter != null) {
-                        result = objectAndAdapter.object;
-                        doDeinitializeEntry(key, entry);
-                    }
+        return withKeyLock(key, entryLock -> withWriteLock(entryLock, () -> {
+            O result = null;
+            Entry<O> entry = internalGetEntryIfPresent(key);
+            if (entry != null) {
+                ObjectAndAdapter<O> objectAndAdapter = entry.getObjectAndAdapter();
+                if (objectAndAdapter != null) {
+                    result = objectAndAdapter.object;
+                    doDeinitializeEntry(key, entry);
                 }
-                entry = Optional.ofNullable(entry).orElseGet(this::doCreateEntry);
-                doInitializeEntry(key, entry, factory, adapter);
-            } finally {
-                entryLock.unlockWrite();
             }
-        } finally {
-            releaseLock(key);
-        }
-        return result;
+            entry = Optional.ofNullable(entry).orElseGet(this::doCreateEntry);
+            doInitializeEntry(key, entry, factory, adapter);
+            return result;
+        }));
     }
 
     /**
@@ -618,20 +590,10 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
         O result = null;
         Entry<O> entry = internalGetEntryIfPresent(key);
         if (entry != null) {
-            final Lock entryLock = acquireLock(key);
-            try {
-                entryLock.lockWrite();
-                try {
-                    entry = internalGetEntryIfPresent(key);
-                    if (entry != null) {
-                        result = doRemoveEntry(key, entry);
-                    }
-                } finally {
-                    entryLock.unlockWrite();
-                }
-            } finally {
-                releaseLock(key);
-            }
+            result = withKeyLock(key, entryLock -> withWriteLock(entryLock, () -> {
+                final Entry<O> currentEntry = internalGetEntryIfPresent(key);
+                return currentEntry != null ? doRemoveEntry(key, currentEntry) : null;
+            }));
         }
         return result;
     }
@@ -712,6 +674,69 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     protected final void releaseLock(K key) {
         lockSource_.release(key);
+    }
+
+    /**
+     * Владелец протокола per-key блокировки (CM-15): устанавливает лок ключа через
+     * {@link #acquireLock(Object)} и гарантирует ровно один {@link #releaseLock(Object)} при любом
+     * исходе {@code action}. Инвариант «каждому acquire — release» живёт здесь и больше нигде:
+     * методы менеджера не переписывают протокол, а вызывают {@link #withReadLock(Lock, FailableSupplier)},
+     * {@link #withWriteLock(Lock, FailableSupplier)} и {@link #withUpgradedLock(Lock, FailableSupplier)}
+     * внутри {@code action}.
+     *
+     * @param key    ключ
+     * @param action тело операции, получающее лок ключа
+     * @return результат {@code action}
+     * @throws Exception если бросило {@code action} (или источник локов) — release выполняется в finally
+     */
+    protected final <R> R withKeyLock(K key, FailableFunction1<Lock, R> action) throws Exception {
+        final Lock entryLock = acquireLock(key);
+        try {
+            return action.apply(entryLock);
+        } finally {
+            releaseLock(key);
+        }
+    }
+
+    /**
+     * Владелец пары lockRead/unlockRead: снятие строго в finally.
+     */
+    protected final <R> R withReadLock(Lock entryLock, FailableSupplier<R> action) throws Exception {
+        entryLock.lockRead();
+        try {
+            return action.get();
+        } finally {
+            entryLock.unlockRead();
+        }
+    }
+
+    /**
+     * Владелец пары lockWrite/unlockWrite: снятие строго в finally.
+     */
+    protected final <R> R withWriteLock(Lock entryLock, FailableSupplier<R> action) throws Exception {
+        entryLock.lockWrite();
+        try {
+            return action.get();
+        } finally {
+            entryLock.unlockWrite();
+        }
+    }
+
+    /**
+     * Владелец пары upgradeLock/downgradeLock: downgrade — строго в finally, сразу после секции.
+     * <p>
+     * {@link Lock#upgradeLock()} вызывается вне {@code try}: при его броске {@code downgradeLock()}
+     * не вызывается — по контракту {@link Lock#upgradeLock()} реализация обязана сама восстановить
+     * read-аквизицию, которую внешний {@link #withReadLock(Lock, FailableSupplier)} уравновесит единственным
+     * {@code unlockRead()}.
+     */
+    protected final <R> R withUpgradedLock(Lock entryLock, FailableSupplier<R> action) throws Exception {
+        entryLock.upgradeLock();
+        try {
+            return action.get();
+        } finally {
+            entryLock.downgradeLock();
+        }
     }
 
     /**

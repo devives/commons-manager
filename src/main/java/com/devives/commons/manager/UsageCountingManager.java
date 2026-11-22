@@ -368,33 +368,21 @@ public class UsageCountingManager<K, O> {
          * @param key ключ
          */
         public final void release(K key) {
-            final Lock entryLock = acquireLock(key);
             try {
                 // Отклонение до захвата лока: checked ManagerException оборачивается нижним catch.
                 assertKeyNotInEntryGotCallback(key);
-                CountingEntry<O> entry;
-                entryLock.lockRead();
-                try {
-                    entry = (CountingEntry<O>) internalGetEntryIfPresent(key);
+                withKeyLock(key, entryLock -> withReadLock(entryLock, () -> {
+                    final CountingEntry<O> entry = (CountingEntry<O>) internalGetEntryIfPresent(key);
                     Objects.requireNonNull(entry, String.format("Key '%s' not present in manager.", key));
-                    long usages = entry.decUsages();
+                    final long usages = entry.decUsages();
                     if (usages == 0 && isRemoveUnusedObjects()) {
-                        entryLock.upgradeLock();
-                        try {
-                            if (canRemoveUnused(entry)) {
-                                doRemoveEntry(key, entry);
-                            }
-                        } finally {
-                            entryLock.downgradeLock();
-                        }
+                        // Выгрузка неиспользуемого: read -> write -> back, машина в withUpgradedLock (CM-15).
+                        return withUpgradedLock(entryLock, () -> canRemoveUnused(entry) ? doRemoveEntry(key, entry) : null);
                     }
-                } finally {
-                    entryLock.unlockRead();
-                }
+                    return null;
+                }));
             } catch (Exception e) {
                 throw ExceptionUtils.asUnchecked(e);
-            } finally {
-                releaseLock(key);
             }
         }
 
