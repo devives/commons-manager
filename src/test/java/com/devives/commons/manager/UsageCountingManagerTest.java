@@ -17,9 +17,12 @@
 package com.devives.commons.manager;
 
 import com.devives.commons.lang.function.FailableConsumer;
+import com.devives.commons.listener.ListenersBuilder;
+import com.devives.commons.publisher.Publishers;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class UsageCountingManagerTest {
@@ -87,6 +90,43 @@ public class UsageCountingManagerTest {
             manager.release("Item1");
             Assertions.assertNotNull(nestedError.get());
             Assertions.assertTrue(manager.isEmpty());
+        });
+    }
+
+    /**
+     * Выпуск того же ключа из уведомления {@code onEntryGot} отклоняется: путь выгрузки в {@code release}
+     * переходит с удерживаемого уведомлением read-лока на write через {@code upgradeLock} и подвешивал бы
+     * поток навсегда под {@code RWLockSource} (CM-09). Превентивный таймаут страхует от зависания при
+     * поломке гейта.
+     */
+    @Test
+    public void release_fromEntryGotCallback_rejected() throws Exception {
+        Assertions.assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+            final AtomicReference<Throwable> nestedError = new AtomicReference<>();
+            final UsageCountingManager.InternalManager<String, SimpleTestItem> internal =
+                    new UsageCountingManager.InternalManager<String, SimpleTestItem>(
+                            Publishers.<UsageCountingManager.Listener<SimpleTestItem>>builder()
+                                    .listeners(ListenersBuilder::setSynchronized)
+                                    .build()) {
+                        private boolean fired_;
+
+                        @Override
+                        protected void onEntryGot(Entry<SimpleTestItem> entry) {
+                            // super не вызываем сознательно: счётчик остаётся равным 1, и вложенный
+                            // release доходит до пути выгрузки с upgradeLock.
+                            if (fired_) {
+                                return;
+                            }
+                            fired_ = true;
+                            nestedError.set(Assertions.assertThrows(ManagerException.class, () -> release("Item1")));
+                        }
+                    };
+            final UsageCountingManager<String, SimpleTestItem> manager = new UsageCountingManager<>(internal);
+            manager.acquire("Item1", SimpleTestItem::new);
+            // Второй acquire находит готовую запись и уведомляет onEntryGot.
+            manager.acquire("Item1", SimpleTestItem::new);
+            Assertions.assertNotNull(nestedError.get());
+            Assertions.assertFalse(manager.isEmpty());
         });
     }
 

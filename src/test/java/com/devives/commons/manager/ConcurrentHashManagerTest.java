@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -142,6 +143,45 @@ public class ConcurrentHashManagerTest extends HashManagerTest {
         Assertions.assertEquals("inner", result);
         Assertions.assertEquals(1, manager.addedCounter.get());
         Assertions.assertEquals(1, manager.gotCounter.get());
+    }
+
+    /**
+     * Основной сценарий CM-09 — {@code RWLockSource}: write того же ключа из уведомления
+     * {@code onEntryGot} вешал поток навсегда (write-over-read владельца). Теперь запрос отклоняется
+     * гейтом до обращения к локу. Тест защищён превентивным таймаутом: при поломке гейта он провалится,
+     * а не зависнет.
+     */
+    @Nested
+    public class EntryGotCallbackUnderReadWriteLockTest {
+
+        @Test
+        public void reentrantRemove_fromOnEntryGot_rejectedWithoutDeadlock() {
+            Assertions.assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+                final ConcurrentHashManager<String, SimpleTestItem> manager = new ConcurrentHashManager<String, SimpleTestItem>() {
+                    private static final long serialVersionUID = 1L;
+                    private boolean fired_;
+
+                    @Override
+                    protected void onEntryGot(Entry<SimpleTestItem> entry) {
+                        if (fired_) {
+                            return;
+                        }
+                        fired_ = true;
+                        // Реентраное чтение под RW-локом легально (read-over-read владельца)...
+                        Assertions.assertSame(entry.getObject(), getIfPresent("Item1"));
+                        // ...а write того же ключа обязан быть отклонён до запроса write-лока.
+                        Assertions.assertThrows(ManagerException.class, () -> remove("Item1"));
+                    }
+                };
+                try {
+                    final SimpleTestItem item = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                    Assertions.assertSame(item, manager.getIfPresent("Item1"));
+                    Assertions.assertEquals(1, manager.size());
+                } finally {
+                    manager.clear();
+                }
+            });
+        }
     }
 
     @Nested

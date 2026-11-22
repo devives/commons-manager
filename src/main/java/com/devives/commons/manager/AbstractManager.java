@@ -54,9 +54,29 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      * Registration is done by the chokepoints of both transitions, {@link #doInitializeEntry(Object, Entry,
      * ObjectFactory, ManagedAdapter)} and {@link #doDeinitializeEntry(Object, Entry)}; the operation entry
      * points {@code doComputeIfAbsent}/{@code doReplace}/{@code doRemove} only check the set. Reentrant
-     * reads ({@code get}/{@code getIfPresent}) are not gated.
+     * reads ({@code get}/{@code getIfPresent}) are not gated. Write operations requested from the
+     * {@link #onEntryGot(Entry)} notification are gated separately by {@link #entryGotCallbackDepth_}.
      */
     private final ThreadLocal<Set<K>> transitioningKeys_ = ThreadLocal.withInitial(HashSet::new);
+    /**
+     * Keys whose {@link #onEntryGot(Entry)} notification is currently running on the calling thread,
+     * with nesting depth.
+     * <p>
+     * The notification runs while the calling thread already holds the key lock (a read lock on the
+     * {@code get()}/{@code getIfPresent()} paths and on the entry-found branch of
+     * {@code doComputeIfAbsent()}; a write lock on the entry-borrowed branch). A write operation on the
+     * same key requested by user code inside the notification cannot pass the lock: under
+     * {@code RWLockSource} a write-over-read request by the owning thread blocks forever
+     * (self-deadlock, CM-09), while under reentrant or noop sources the same call would silently mutate
+     * the entry underneath the ongoing read. The request is therefore rejected with
+     * {@link ManagerException} uniformly, independently of the lock source.
+     * <p>
+     * A map with depth instead of a set: the notification can legitimately recurse via a reentrant
+     * {@code get()}/{@code getIfPresent()} from the callback itself, and unregistering on return from the
+     * nested notification must not open the gate while an outer notification of the same key is still
+     * running. Reentrant reads are not gated.
+     */
+    private final ThreadLocal<Map<K, Integer>> entryGotCallbackDepth_ = ThreadLocal.withInitial(HashMap::new);
     /**
      * The cached values view. The field is intentionally non-volatile: done similarly to
      * {@code java.util.concurrent.ConcurrentHashMap#values()}, which caches its view fields
@@ -331,7 +351,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                 if (entry != null) {
                     result = entry.getObject();
                     if (result != null) {
-                        doEntryGot(entry);
+                        notifyEntryGot(key, entry);
                     }
                 }
                 return result;
@@ -361,7 +381,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                     result = entry.getObject();
                     // If object non set, it's equals entry not present.
                     if (notify && result != null) {
-                        doEntryGot(entry);
+                        notifyEntryGot(key, entry);
                     }
                 } finally {
                     entryLock.unlockRead();
@@ -375,6 +395,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     protected final O doComputeIfAbsent(final K key, final ObjectFactory<O> factory, final ManagedAdapter<O> adapter) throws Exception {
         assertKeyNotTransitioning(key);
+        assertKeyNotInEntryGotCallback(key);
         O result = null;
         final Lock entryLock = acquireLock(key);
         try {
@@ -389,7 +410,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                         if (entry.getObjectAndAdapter() == null) {
                             doInitializeEntry(key, entry, factory, adapter);
                         } else {
-                            doEntryGot(entry);
+                            notifyEntryGot(key, entry);
                         }
                         result = entry.getObjectAndAdapter().object;
                     } finally {
@@ -397,7 +418,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                         entryLock.downgradeLock();
                     }
                 } else {
-                    doEntryGot(entry);
+                    notifyEntryGot(key, entry);
                     result = entry.getObjectAndAdapter().object;
                 }
             } finally {
@@ -472,10 +493,13 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      *
      * @return the previous instance of {@code O} if it was present, otherwise {@code null}.
      * @throws ManagerException if {@code key} is already in a lifecycle transition performed by the
-     *                          current thread (reentrant replacement of a key being initialized or removed).
+     *                          current thread (reentrant replacement of a key being initialized or removed)
+     *                          or its {@link #onEntryGot(Entry)} notification is running on the current
+     *                          thread (reentrant write from the callback, see {@link #entryGotCallbackDepth_}).
      */
     protected final O doReplace(K key, ObjectFactory<O> factory, ManagedAdapter<O> adapter) throws Exception {
         assertKeyNotTransitioning(key);
+        assertKeyNotInEntryGotCallback(key);
         O result = null;
         final Lock entryLock = acquireLock(key);
         try {
@@ -587,6 +611,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     protected O doRemove(K key) throws Exception {
         assertKeyNotTransitioning(key);
+        assertKeyNotInEntryGotCallback(key);
         O result = null;
         Entry<O> entry = internalGetEntryIfPresent(key);
         if (entry != null) {
@@ -685,6 +710,57 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
                 key));
     }
 
+    /**
+     * Notifies that the managed object has been obtained, guarding reentrant write operations on the
+     * same key from the callback (see {@link #entryGotCallbackDepth_}).
+     *
+     * @param key   entry key
+     * @param entry the record
+     */
+    private void notifyEntryGot(final K key, final Entry<O> entry) {
+        beginEntryGotCallback(key);
+        try {
+            doEntryGot(entry);
+        } finally {
+            endEntryGotCallback(key);
+        }
+    }
+
+    private void beginEntryGotCallback(K key) {
+        entryGotCallbackDepth_.get().merge(key, 1, Integer::sum);
+    }
+
+    private void endEntryGotCallback(K key) {
+        final Map<K, Integer> depths = entryGotCallbackDepth_.get();
+        depths.compute(key, (k, depth) -> depth != null && depth > 1 ? depth - 1 : null);
+        if (depths.isEmpty()) {
+            // Do not retain an empty map on pooled threads after the last notification of the scope.
+            entryGotCallbackDepth_.remove();
+        }
+    }
+
+    /**
+     * Rejects a write operation on a key whose {@link #onEntryGot(Entry)} notification is running on the
+     * calling thread: the thread already holds the key lock, so the write could not acquire it.
+     *
+     * @param key entry key
+     * @throws ManagerException if the notification for the key is running on the current thread
+     */
+    protected final void assertKeyNotInEntryGotCallback(final K key) throws ManagerException {
+        if (entryGotCallbackDepth_.get().containsKey(key)) {
+            throw entryGotCallbackKeyError(key);
+        }
+    }
+
+    private ManagerException entryGotCallbackKeyError(K key) {
+        return new ManagerException(String.format(
+                "The entry-got notification for key '%s' is running on the current operation."
+                        + " Write operations (computeIfAbsent/put/remove) on the same key from a hook or listener are forbidden:"
+                        + " the key lock is already held by this thread and a write request would deadlock."
+                        + " Throw an exception to cancel the ongoing operation; use get()/getIfPresent() for reentrant read access.",
+                key));
+    }
+
     protected final void doEntryGot(Entry<O> entry) {
         onEntryGot(entry);
     }
@@ -693,6 +769,11 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      * This method is called after a reference to the managed object has been successfully obtained.
      * <p>
      * At the time of invocation, a read lock is set for the record.
+     * <p>
+     * Write operations on the same key ({@code computeIfAbsent()}/{@code put()}/{@code remove()}) requested
+     * from this notification are rejected with {@link ManagerException}: this thread already holds the key
+     * lock, so a write request would deadlock under {@code RWLockSource} (CM-09). Reentrant
+     * {@code get()}/{@code getIfPresent()} and operations on other keys are allowed.
      *
      * @param entry the record
      */

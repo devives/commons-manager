@@ -613,25 +613,147 @@ public class HashManagerTest {
         }
     }
 
-    @Test
-    public void reentrantRemove_fromOnEntryGot_staysLegalForCompleteEntry() throws Exception {
-        // onEntryGot не является фазой перехода: запись полная, remove того же ключа остаётся
-        // легальной операцией (гейт транзитов его не ловит). HashManager с noop-локом — сценарий
-        // не про дедлок write-over-read (CM-09), а именно про отсутствие блокировки гейтом.
-        final HashManager<String, SimpleTestItem> manager = new HashManager<String, SimpleTestItem>() {
-            private final AtomicInteger gotCount_ = new AtomicInteger();
+    /**
+     * Write-операция того же ключа, запрошенная из уведомления {@code onEntryGot}, отклоняется: поток
+     * уведомления уже держит лок ключа, и движок лока не может выдать write поверх него — под
+     * {@code RWLockSource} такой запрос вешает поток навсегда (write-over-read, CM-09), под реентраными
+     * и noop-источниками та же операция тихо порчала запись под идущим чтением. Отклонение единообразно
+     * для всех источников (гейт {@code entryGotCallbackDepth_}). Реентраное чтение и операции на других
+     * ключах легальны.
+     * <p>
+     * Предшествующий тест {@code reentrantRemove_fromOnEntryGot_staysLegalForCompleteEntry} фиксировал
+     * легальность операции, достижимой только благодаря noop-локу {@code HashManager}; с CM-09 она
+     * отклоняется на всех источниках.
+     */
+    @Nested
+    public class EntryGotCallbackGateTest {
 
-            @Override
-            protected void onEntryGot(Entry<SimpleTestItem> entry) {
-                if (gotCount_.incrementAndGet() > 1) {
-                    remove("Item1");
+        @Test
+        public void reentrantRemove_fromOnEntryGot_rejectedAndEntryAlive() throws Exception {
+            final HashManager<String, SimpleTestItem> manager = new HashManager<String, SimpleTestItem>() {
+                private boolean fired_;
+
+                @Override
+                protected void onEntryGot(Entry<SimpleTestItem> entry) {
+                    if (fired_) {
+                        return;
+                    }
+                    fired_ = true;
+                    Assertions.assertThrows(ManagerException.class, () -> remove("Item1"));
                 }
+            };
+            try {
+                final SimpleTestItem item = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                Assertions.assertSame(item, manager.getIfPresent("Item1"));
+                Assertions.assertEquals(1, manager.size());
+                Assertions.assertSame(item, manager.get("Item1"));
+            } finally {
+                manager.clear();
             }
-        };
-        manager.computeIfAbsent("Item1", SimpleTestItem::new);
-        manager.getIfPresent("Item1");
-        manager.getIfPresent("Item1");
-        Assertions.assertEquals(0, manager.size());
+        }
+
+        @Test
+        public void reentrantPut_fromOnEntryGot_rejectedAndOldObjectAlive() throws Exception {
+            final HashManager<String, SimpleTestItem> manager = new HashManager<String, SimpleTestItem>() {
+                private boolean fired_;
+
+                @Override
+                protected void onEntryGot(Entry<SimpleTestItem> entry) {
+                    if (fired_) {
+                        return;
+                    }
+                    fired_ = true;
+                    Assertions.assertThrows(ManagerException.class, () -> put("Item1", SimpleTestItem::new));
+                }
+            };
+            try {
+                final SimpleTestItem item = manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                Assertions.assertSame(item, manager.get("Item1"));
+                Assertions.assertEquals(1, manager.size());
+            } finally {
+                manager.clear();
+            }
+        }
+
+        @Test
+        public void reentrantComputeIfAbsent_fromOnEntryGot_rejected() throws Exception {
+            final HashManager<String, SimpleTestItem> manager = new HashManager<String, SimpleTestItem>() {
+                private boolean fired_;
+
+                @Override
+                protected void onEntryGot(Entry<SimpleTestItem> entry) {
+                    if (fired_) {
+                        return;
+                    }
+                    fired_ = true;
+                    Assertions.assertThrows(ManagerException.class, () -> computeIfAbsent("Item1", SimpleTestItem::new));
+                }
+            };
+            try {
+                manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                Assertions.assertNotNull(manager.getIfPresent("Item1"));
+                Assertions.assertEquals(1, manager.size());
+            } finally {
+                manager.clear();
+            }
+        }
+
+        /**
+         * Дискриминатор глубины против множества: вложенное чтение повторно прогоняет {@code onEntryGot}
+         * (глубина 2), а выход из вложенного окна не должен открыть гейт, пока внешнее уведомление того
+         * же ключа ещё выполняется.
+         */
+        @Test
+        public void reentrantGet_fromOnEntryGot_allowedAndGateOpenOnlyAfterOuterReturns() throws Exception {
+            final HashManager<String, SimpleTestItem> manager = new HashManager<String, SimpleTestItem>() {
+                private boolean fired_;
+
+                @Override
+                protected void onEntryGot(Entry<SimpleTestItem> entry) {
+                    if (fired_) {
+                        return;
+                    }
+                    fired_ = true;
+                    final SimpleTestItem nested = getIfPresent("Item1");
+                    Assertions.assertSame(entry.getObject(), nested);
+                    Assertions.assertThrows(ManagerException.class, () -> remove("Item1"));
+                }
+            };
+            try {
+                manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                Assertions.assertNotNull(manager.getIfPresent("Item1"));
+                Assertions.assertEquals(1, manager.size());
+                // Гейт закрывается по возврату из внешнего уведомления: обычный remove более не блокируется.
+                Assertions.assertNotNull(manager.remove("Item1"));
+            } finally {
+                manager.clear();
+            }
+        }
+
+        @Test
+        public void crossKeyRemove_fromOnEntryGot_allowed() throws Exception {
+            final HashManager<String, SimpleTestItem> manager = new HashManager<String, SimpleTestItem>() {
+                private boolean fired_;
+
+                @Override
+                protected void onEntryGot(Entry<SimpleTestItem> entry) {
+                    if (fired_) {
+                        return;
+                    }
+                    fired_ = true;
+                    remove("Item2");
+                }
+            };
+            try {
+                manager.computeIfAbsent("Item1", SimpleTestItem::new);
+                manager.computeIfAbsent("Item2", SimpleTestItem::new);
+                Assertions.assertNotNull(manager.getIfPresent("Item1"));
+                Assertions.assertFalse(manager.containsKey("Item2"));
+                Assertions.assertTrue(manager.containsKey("Item1"));
+            } finally {
+                manager.clear();
+            }
+        }
     }
 
     protected void forManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {

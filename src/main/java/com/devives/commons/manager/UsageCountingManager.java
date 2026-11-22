@@ -357,12 +357,19 @@ public class UsageCountingManager<K, O> {
          * <p>
          * Если установлено свойство {@link #isRemoveUnusedObjects}, при уменьшении счётчика до "0", удаляет объект из
          * менеджера.
+         * <p>
+         * Выпуск того же ключа из уведомления {@code onEntryGot} отклоняется: поток уже держит read-лок
+         * ключа, а путь выгрузки до {@code doRemoveEntry} переходит на write-лок — запрос остановился бы
+         * навсегда (self-deadlock write-over-read, CM-09).
          *
          * @param key ключ
+         * @throws ManagerException если по ключу на текущем потоке выполняется уведомление {@code onEntryGot}
          */
         public final void release(K key) {
             final Lock entryLock = acquireLock(key);
             try {
+                // Отклонение до захвата лока: checked ManagerException оборачивается нижним catch.
+                assertKeyNotInEntryGotCallback(key);
                 CountingEntry<O> entry;
                 entryLock.lockRead();
                 try {
