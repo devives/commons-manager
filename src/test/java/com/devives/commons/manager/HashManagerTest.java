@@ -101,6 +101,73 @@ public class HashManagerTest {
     }
 
     @Test
+    public void start_onStartedHookFailsAndRollbackStopFails_onObjectFailureCalledOnce() throws Exception {
+        final AtomicInteger failureCounter = new AtomicInteger();
+        final ManagedAdapter<Object> stopFailingAdapter = new ManagedAdapter<Object>() {
+            @Override
+            public void startObject(Object object) throws Exception {
+            }
+
+            @Override
+            public void stopObject(Object object) throws Exception {
+                throw new IllegalStateException("Stop failure.");
+            }
+        };
+        final Manager.Hooks<String, Object> startedFailingHooks = new Manager.Hooks<String, Object>() {
+            @Override
+            public void onObjectStarted(Object object) throws Exception {
+                throw new IllegalStateException("The onObjectStarted failure.");
+            }
+
+            @Override
+            public void onObjectFailure(Object object, Throwable throwable) {
+                failureCounter.incrementAndGet();
+            }
+        };
+        final Manager<String, Object> manager = new HashManager<>(stopFailingAdapter, startedFailingHooks);
+        final IllegalStateException thrown = Assertions.assertThrows(IllegalStateException.class,
+                () -> manager.computeIfAbsent("Item1", () -> new Object()));
+        // Primary — ошибка откатной остановки; исходная ошибка onObjectStarted не должна быть потеряна.
+        Assertions.assertEquals("Stop failure.", thrown.getMessage());
+        Assertions.assertArrayEquals(
+                new String[]{"The onObjectStarted failure."},
+                Arrays.stream(thrown.getSuppressed()).map(Throwable::getMessage).toArray(String[]::new));
+        Assertions.assertEquals(1, failureCounter.get());
+        Assertions.assertTrue(manager.isEmpty());
+    }
+
+    @Test
+    public void start_onStartedHookFailsRollbackStopSucceeds_onObjectFailureCalledOnce() throws Exception {
+        final AtomicInteger failureCounter = new AtomicInteger();
+        final ManagedAdapter<Object> stopOkAdapter = new ManagedAdapter<Object>() {
+            @Override
+            public void startObject(Object object) throws Exception {
+            }
+
+            @Override
+            public void stopObject(Object object) throws Exception {
+            }
+        };
+        final Manager.Hooks<String, Object> startedFailingHooks = new Manager.Hooks<String, Object>() {
+            @Override
+            public void onObjectStarted(Object object) throws Exception {
+                throw new IllegalStateException("The onObjectStarted failure.");
+            }
+
+            @Override
+            public void onObjectFailure(Object object, Throwable throwable) {
+                failureCounter.incrementAndGet();
+            }
+        };
+        final Manager<String, Object> manager = new HashManager<>(stopOkAdapter, startedFailingHooks);
+        final IllegalStateException thrown = Assertions.assertThrows(IllegalStateException.class,
+                () -> manager.computeIfAbsent("Item1", () -> new Object()));
+        Assertions.assertEquals("The onObjectStarted failure.", thrown.getMessage());
+        Assertions.assertEquals(1, failureCounter.get());
+        Assertions.assertTrue(manager.isEmpty());
+    }
+
+    @Test
     public void remove_afterComputeIfAbsent_areEquals() throws Exception {
         forManager(manager -> {
             SimpleTestItem item1 = manager.computeIfAbsent("Item1", SimpleTestItem::new);

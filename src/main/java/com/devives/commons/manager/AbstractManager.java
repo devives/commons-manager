@@ -669,13 +669,14 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     }
 
     protected final void doObjectStart(O object, ManagedAdapter<O> adapter) throws Exception {
+        final Hooks<K, O> hooks = getHooks();
         Try.runnable(() -> {
-            getHooks().onObjectStarting(object);
+            hooks.onObjectStarting(object);
             adapter.startObject(object);
             Try.runnable(() -> {
-                getHooks().onObjectStarted(object);
+                hooks.onObjectStarted(object);
             }).onCatch((th) -> {
-                doObjectStop(object, adapter);
+                internalStopObject(object, adapter);
                 throw th;
             }).run();
         }).onCatch((th) -> {
@@ -690,17 +691,22 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     protected final void doObjectStop(O object, ManagedAdapter<O> adapter) throws Exception {
         Try.runnable(() -> {
-            ExceptionUtils.collectAndThrow(
-                    () -> getHooks().onObjectStopping(object),
-                    () -> {
-                        adapter.stopObject(object);
-                        getHooks().onObjectStopped(object);
-                    }
-            );
+            internalStopObject(object, adapter);
         }).onCatch((th) -> {
             doObjectFailure(object, adapter, th);
             throw th;
         }).run();
+    }
+
+    private void internalStopObject(final O object, final ManagedAdapter<O> adapter) {
+        final Hooks<K, O> hooks = getHooks();
+        ExceptionUtils.collectAndThrow(
+                () -> hooks.onObjectStopping(object),
+                () -> {
+                    adapter.stopObject(object);
+                    hooks.onObjectStopped(object);
+                }
+        );
     }
 
     protected final void doObjectDestroy(O object, ManagedAdapter<O> adapter) throws Exception {
