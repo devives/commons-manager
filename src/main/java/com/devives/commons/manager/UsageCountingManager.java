@@ -360,10 +360,10 @@ public class UsageCountingManager<K, O> {
          * <p>
          * Выпуск того же ключа из уведомления {@code onEntryGot} отклоняется: поток уже держит read-лок
          * ключа, а путь выгрузки до {@code doRemoveEntry} переходит на write-лок — запрос остановился бы
-         * навсегда (self-deadlock write-over-read, CM-09).
+         * навсегда (self-deadlock write-over-read, CM-09): такой запрос отклоняется
+         * {@code ManagerException} (пробрасывается как unchecked).
          *
          * @param key ключ
-         * @throws ManagerException если по ключу на текущем потоке выполняется уведомление {@code onEntryGot}
          */
         public final void release(K key) {
             final Lock entryLock = acquireLock(key);
