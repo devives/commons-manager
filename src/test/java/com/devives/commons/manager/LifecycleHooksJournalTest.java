@@ -150,7 +150,20 @@ public class LifecycleHooksJournalTest {
     @Test
     public void put_existingKey_oldObjectFullyDeinitializedBeforeNewObjectInitialized() throws Exception {
         final Journal journal = new Journal();
-        final Manager<String, Object> manager = new HashManager<>(new RecordingAdapter(journal), new RecordingHooks(journal));
+        final RecordingAdapter adapter = new RecordingAdapter(journal);
+        // Entry-колбэки трейсятся переопределением onEntryRemoving/onEntryAdded: onEntryRemoving — до stop
+        // старого, onEntryAdded — после start нового (контракт из Javadoc onEntryAdded/onEntryRemoving).
+        final Manager<String, Object> manager = new HashManager<String, Object>(adapter, new RecordingHooks(journal)) {
+            @Override
+            protected void onEntryRemoving(Entry<Object> entry) {
+                journal.add("entryRemoving");
+            }
+
+            @Override
+            protected void onEntryAdded(Entry<Object> entry) {
+                journal.add("entryAdded");
+            }
+        };
         final Object oldItem = manager.computeIfAbsent("Item1", () -> new Labeled("old"));
         journal.events.clear();
         final AtomicReference<Object> newItem = new AtomicReference<>();
@@ -167,8 +180,9 @@ public class LifecycleHooksJournalTest {
         Assertions.assertEquals(1, manager.size());
         Assertions.assertArrayEquals(
                 new String[]{
+                        "entryRemoving",
                         "stopping(old)", "stop(old)", "stopped(old)", "destroying(old)", "destroy(old)", "destroyed(old)",
-                        "created(new)", "starting(new)", "start(new)", "started(new)"},
+                        "created(new)", "starting(new)", "start(new)", "started(new)", "entryAdded"},
                 journal.toArray());
     }
 
