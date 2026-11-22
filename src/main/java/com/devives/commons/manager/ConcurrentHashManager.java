@@ -16,7 +16,6 @@
  */
 package com.devives.commons.manager;
 
-import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.manager.lock.AbstractLockSource;
 import com.devives.commons.manager.lock.RWLockSource;
 
@@ -70,35 +69,13 @@ public class ConcurrentHashManager<K, O> extends AbstractManager<K, O> {
         super(new ConcurrentHashMap<>(), lockSource, defaultAdapter, lifecycleHooks);
     }
 
-    protected final List<O> doRemoveAll() {
-        final List<Throwable> exceptionList = new ArrayList<>();
-        final List<O> list = new ArrayList<>();
-        keySet().forEach(key -> {
-            try {
-                // The write lock will set in doRemove().
-                O item = doRemove(key);
-                if (item != null) {
-                    list.add(item);
-                }
-            } catch (Throwable e) {
-                exceptionList.add(new ManagerException("Error while removing key = '" + key + "'", e));
-            }
-        });
-        ExceptionUtils.throwCollected(exceptionList);
-        return list;
-    }
-
-    protected final void doClear() {
-        final List<Throwable> exceptionList = new ArrayList<>();
-        keySet().forEach(key -> {
-            try {
-                // The write lock will set in doRemove().
-                doRemove(key);
-            } catch (Throwable e) {
-                exceptionList.add(new ManagerException("Error while removing key = '" + key + "'", e));
-            }
-        });
-        ExceptionUtils.throwCollected(exceptionList);
+    /**
+     * Обход слабосогласованного live-view {@code ConcurrentHashMap} допускает изменение множества
+     * ключей самим удалением, копия не нужна.
+     */
+    @Override
+    protected final Iterable<K> keysForBulkRemoval() {
+        return keySet();
     }
 
     @Override

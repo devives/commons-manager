@@ -756,6 +756,73 @@ public class HashManagerTest {
         }
     }
 
+    /**
+     * Агрегирование ошибок массового удаления: единственная ошибка пробрасывается как ошибка
+     * своего ключа, несколько — одним {@code ManagerException} со списком всех ключей и
+     * подавленными причинами (по одной на каждый ключ). Ключи с упавшей остановкой удаляются
+     * из менеджера в finally-блоке деинициализации (CM-21), поэтому после броска менеджер пуст.
+     * <p>
+     * Класс наследуется {@code ConcurrentHashManagerTest}, поэтому протокол проверяется и на снимке
+     * ключей (база), и на слабосогласованном live-view (оверрайд {@code keysForBulkRemoval}).
+     */
+    @Nested
+    protected class BulkRemovalTest {
+
+        @Test
+        public void removeAll_singleFailingStop_throwsPerKeyError() {
+            final Manager<Integer, String> manager = newFailingStopManager();
+            try {
+                manager.computeIfAbsent(1, key -> "one");
+                final ManagerException error = Assertions.assertThrows(ManagerException.class, manager::removeAll);
+                Assertions.assertEquals("Error while removing key = '1'", error.getMessage());
+                Assertions.assertTrue(error.getCause() instanceof IllegalStateException);
+                Assertions.assertEquals(0, error.getSuppressed().length);
+                Assertions.assertTrue(manager.isEmpty());
+            } finally {
+                manager.clear();
+            }
+        }
+
+        @Test
+        public void removeAll_twoFailingKeys_throwsAggregateErrorListingAllKeys() {
+            final Manager<Integer, String> manager = newFailingStopManager();
+            try {
+                manager.computeIfAbsent(1, key -> "one");
+                manager.computeIfAbsent(2, key -> "two");
+                final ManagerException error = Assertions.assertThrows(ManagerException.class, manager::removeAll);
+                // Список ключей без двойных скобок: "keys = [1, 2]", а не "keys = [[1, 2]]".
+                Assertions.assertEquals("Error while removing keys = [1, 2]", error.getMessage());
+                final Throwable[] suppressed = error.getSuppressed();
+                Assertions.assertEquals(2, suppressed.length);
+                final Set<String> suppressedMessages = Arrays.stream(suppressed)
+                        .map(Throwable::getMessage)
+                        .collect(Collectors.toSet());
+                Assertions.assertTrue(suppressedMessages.contains("Error while removing key = '1'"));
+                Assertions.assertTrue(suppressedMessages.contains("Error while removing key = '2'"));
+                Assertions.assertTrue(manager.isEmpty());
+            } finally {
+                manager.clear();
+            }
+        }
+
+        private Manager<Integer, String> newFailingStopManager() {
+            return newManager(new ManagedAdapter<String>() {
+                @Override
+                public void startObject(String object) {
+                }
+
+                @Override
+                public void stopObject(String object) throws Exception {
+                    throw new IllegalStateException("Stop fails for '" + object + "'.");
+                }
+
+                @Override
+                public void destroyObject(String object) {
+                }
+            });
+        }
+    }
+
     protected void forManager(FailableConsumer<Manager<String, SimpleTestItem>> consumer) throws Exception {
         Manager<String, SimpleTestItem> manager = newManager();
         try {
@@ -918,6 +985,12 @@ public class HashManagerTest {
 
         private OrderedMapManager() {
             super(new LinkedHashMap<>());
+        }
+
+        @Override
+        protected Iterable<K> keysForBulkRemoval() {
+            // LinkedHashMap мутируется при удалении — обход только по снимку.
+            return new ArrayList<>(keySet());
         }
 
         @Override

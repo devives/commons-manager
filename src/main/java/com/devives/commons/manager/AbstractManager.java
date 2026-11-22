@@ -22,6 +22,7 @@ import com.devives.commons.lang.call.Try;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -634,36 +635,65 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
     }
 
     protected List<O> doRemoveAll() {
-        final List<Throwable> exceptionList = new ArrayList<>();
-        final List<O> list = new ArrayList<>();
-        final List<K> keys = new ArrayList<>(keySet());
-        keys.forEach(key -> {
-            try {
-                // The write lock will set in doRemove().
-                O item = doRemove(key);
-                if (item != null) {
-                    list.add(item);
-                }
-            } catch (Exception e) {
-                exceptionList.add(new ManagerException("Error while removing key = '" + key + "'", e));
-            }
-        });
-        ExceptionUtils.throwCollected(exceptionList);
-        return list;
+        final List<O> removedItemList = new ArrayList<>();
+        doRemoveKeys(keysForBulkRemoval(), removedItemList::add);
+        return removedItemList;
     }
 
     protected void doClear() {
-        final List<Throwable> exceptionList = new ArrayList<>();
-        final List<K> keys = new ArrayList<>(keySet());
-        keys.forEach(key -> {
+        doRemoveKeys(keysForBulkRemoval(), null);
+    }
+
+    /**
+     * Источник ключей для массового удаления {@link #doRemoveAll()} и {@link #doClear()}.
+     *
+     * @return ключи, удаляемые операцией массового удаления.
+     */
+    protected abstract Iterable<K> keysForBulkRemoval();
+
+    /**
+     * Протокол массового удаления: удаляет каждый ключ через {@link #doRemove(Object)}, продолжая
+     * обработку при ошибках.
+     * <p>
+     * {@link VirtualMachineError} прерывает операцию немедленно. Любая другая ошибка собирается в
+     * {@code ManagerException("Error while removing key = '<key>'")}; единственная собранная ошибка
+     * пробрасывается как есть, несколько агрегируются в
+     * {@code ManagerException("Error while removing keys = [...]")} с подавленными ошибками ключей.
+     * Ключи, упавшие на фазах остановки/уничтожения, всё равно удаляются с карты в finally-блоке
+     * деинициализации (CM-21), поэтому бросок не оставляет таких ключей; остаётся только ключ,
+     * удаление которого отклонировано хуком {@code onEntryRemoving}.
+     *
+     * @param keys        удаляемые ключи; допустимо live-view (см. {@link #keysForBulkRemoval()}).
+     * @param removedSink приёмник удалённых объектов либо {@code null}. Приёмник обязателен только
+     *                    там, где список удалённых входит в контракт ({@link #doRemoveAll()});
+     *                    {@link #doClear()} передаёт {@code null}: накапливать ссылки на все
+     *                    уничтоженные объекты до конца операции на больших менеджерах —
+     *                    непрофильная нагрузка на память.
+     */
+    private void doRemoveKeys(Iterable<K> keys, Consumer<O> removedSink) {
+        final List<ManagerException> exceptionList = new ArrayList<>();
+        final List<K> failedKeyList = new ArrayList<>();
+        for (K key : keys) {
             try {
                 // The write lock will set in doRemove().
-                doRemove(key);
-            } catch (Exception e) {
-                exceptionList.add(new ManagerException("Error while removing key = '" + key + "'", e));
+                final O item = doRemove(key);
+                if (item != null && removedSink != null) {
+                    removedSink.accept(item);
+                }
+            } catch (VirtualMachineError vme) {
+                throw vme;
+            } catch (Throwable e) {
+                failedKeyList.add(key);
+                exceptionList.add(new ManagerException("Error while removing key: '" + key + "'", e));
             }
-        });
-        ExceptionUtils.throwCollected(exceptionList);
+        }
+        if (exceptionList.size() == 1) {
+            throw ExceptionUtils.asUnchecked(exceptionList.stream().findFirst().get());
+        } else if (exceptionList.size() > 1) {
+            ManagerException me = new ManagerException(String.format("Errors occurred while removing keys: %s", failedKeyList));
+            exceptionList.forEach(me::addSuppressed);
+            throw ExceptionUtils.asUnchecked(me);
+        }
     }
 
     protected final Lock acquireLock(K key) {

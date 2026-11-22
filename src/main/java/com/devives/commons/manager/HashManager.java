@@ -16,6 +16,7 @@
  */
 package com.devives.commons.manager;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 import static com.devives.commons.manager.Manager.*;
@@ -42,6 +43,14 @@ public class HashManager<K, O> extends AbstractManager<K, O> {
 
     public HashManager(ManagedAdapter<O> defaultAdapter, Hooks<K, O> lifecycleHooks) {
         super(new HashMap<>(), noopLockSource(), defaultAdapter, lifecycleHooks);
+    }
+
+    /**
+     * Удаление мутирует внутреннюю карту во время обхода, поэтому реализация возвращает
+     * снимок множества ключей: обход live-view {@code HashMap} бросил бы {@code ConcurrentModificationException}.
+     */
+    protected final Iterable<K> keysForBulkRemoval() {
+        return new ArrayList<>(keySet());
     }
 
 }
