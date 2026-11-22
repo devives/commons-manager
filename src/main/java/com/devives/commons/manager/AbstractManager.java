@@ -253,7 +253,7 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     @Override
     public O computeIfAbsent(K key, ManagedFactory<O> factory) {
-        return computeIfAbsent(key, factory::createObject, factory);
+        return computeIfAbsent(key, factory, factory);
     }
 
     @Override
@@ -296,12 +296,12 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
 
     @Override
     public O put(K key, ObjectFactory<O> factory) {
-        return put(key, factory::createObject, getDefaultAdapter());
+        return put(key, factory, getDefaultAdapter());
     }
 
     @Override
     public O put(K key, ManagedFactory<O> factory) {
-        return put(key, factory::createObject, factory);
+        return put(key, factory, factory);
     }
 
     @Override
