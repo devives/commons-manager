@@ -859,6 +859,11 @@ public abstract class AbstractManager<K, O> implements Manager<K, O> {
      * <p>
      * An exception thrown from this method rolls back the newly added record, stops and destroys the managed object,
      * and then aborts the current action.
+     * <p>
+     * This is a record-registration failure, not a failure of an object lifecycle phase:
+     * {@link Manager.Hooks#onObjectFailure(Object, Throwable)} reports failures of the start/stop phases only
+     * and is not notified for this exception (CM-16). The exception propagates to the caller of the public
+     * operation; a failure of the rollback stop itself is notified via {@code onObjectFailure} as usual.
      *
      * @param entry the record
      */
